@@ -1,0 +1,174 @@
+---
+title: "rarefaction for assaf"
+author: "TG"
+date: "26 7 2022"
+output: html_document
+---
+
+# Load and preper data
+
+```{r}
+load("fish_full_data.rdata")
+load("survey_list.Rdata")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(Rarefy)
+library(rareNMtests)
+```
+
+1) set one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 1
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <1)
+
+```
+
+3) filter the north beach
+```{r}
+one_observer<-one_observer %>%
+  filter(Site !="North beach",
+         ! Knoll %in% c("Tamar","South bridge reserve","south bridge reserve",
+                        "North bridge reserve","north bridge reserve"))
+                                      
+```
+
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+filter 2017
+
+```{r}
+  one_observer<-one_observer %>% dplyr::filter(Year > "2017")
+```
+
+# Create wide data for 2015
+
+1. species by 2015 categories - wide_2015 (for each site comparison)
+
+
+```{r include=FALSE}
+all_fish <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data<-spread(all_fish,Species,aboundance,fill = 0)
+
+srb_list<-list()
+loop<-1
+
+for (i in unique(wide_data$Site)) {
+  
+  site<- wide_data %>% filter(Site == i)
+  
+  site_richness<-Rarefy::rare_alpha(site[9:ncol(site)],
+                          method="hill",
+                          q=0,
+                          random=500,
+                          mean = F)
+  
+  site_richness$Site<-rep(i)
+  site_richness$sample<-1:nrow(site_richness)
+  
+  
+  srb_list[[loop]]<-site_richness
+  loop<-loop+1
+  
+  
+}
+
+site_richness<-bind_rows(srb_list)
+
+
+
+all_site_richness<-Rarefy::rare_alpha(wide_data[9:ncol(site)],
+                          method="hill",
+                          q=0,
+                          random=500,
+                          mean = F)
+
+all_site_richness$sample<-1:nrow(all_site_richness)
+
+ggplot(site_richness,aes(x= sample,y=Rarefaction,color=Site))+
+  geom_line(size=1.2)+
+  geom_line(data = all_site_richness,
+            aes(x=sample,y=Rarefaction),
+            color="black",
+            size=1.2)+
+  theme_bw()+
+  xlab("Samples") + ggtitle("Fish")+
+  ylab("Richness")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+scale_color_manual(name = "Site",
+    breaks = c("Caves","Katza","NR","Princess","All sites"),
+    values = c("Caves"="#56dde0",
+               "Katza"="#33658a",
+               "NR"="#f5af2d",
+               "Princess"= "#f2641a",
+               "All sites"="black"))
+
+
+
+ggsave("Fish_sbr_with_all_site.png", width = 14, height = 5, dpi = 300)
+```

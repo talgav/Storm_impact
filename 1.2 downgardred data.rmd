@@ -1,0 +1,134 @@
+---
+title: "1.2 downgardred data"
+author: "TG"
+date: "25 1 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+# merged into script 1.1 no need to run seperatly!!!
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+```
+
+```{r}
+load("fish_full_data.Rdata")
+sp_list_16<-read.csv("raw data to use\\sp_list_2016.csv")
+```
+
+
+add Family to the sp_list
+
+```{r}
+sp_list_16$Species[sp_list_16$Species=="Chromis virdis"]<-"Chromis viridis"
+sp_list_16$Species[sp_list_16$Species=="Zebrasoma veliferum"]<-"Zebrasoma desjardinii"
+sp_list_16$Species[sp_list_16$Species=="Sufflamen albicaudatus"]<-"Sufflamen albicaudatum"
+sp_list_16$Species[sp_list_16$Species=="Cantherhines dumerili"]<-"Cantherhines dumerilii"
+sp_list_16$Species[sp_list_16$Species=="Cheilinus trilobatus"]<-"Cheilinus abudjubbe"
+sp_list_16$Species[sp_list_16$Species=="Parupeneus macronema"]<-"Parupeneus macronemus"
+sp_list_16$Species[sp_list_16$Species=="Pomacentrus trichourus"]<-"Pomacentrus trichrourus"
+sp_list_16$Species[sp_list_16$Species=="Paracirrhites forsteri "]<-"Paracirrhites forsteri"
+sp_list_16$Species[sp_list_16$Species=="Carangoides sp. "]<-"Carangoides sp."
+sp_list_16$Species[sp_list_16$Species=="Oxycheilinus mentalis "]<-"Oxycheilinus mentalis"
+sp_list_16$Species[sp_list_16$Species=="Sphyraena flavicauda "]<-"Sphyraena flavicauda"
+sp_list_16$Species[sp_list_16$Species=="taeniura lymma"]<-"Taeniura lymma"
+sp_list_16$Species[sp_list_16$Species=="Tetrosomus gibbosus "]<-"Tetrosomus gibbosus"
+
+```
+
+
+```{r}
+sp_fam<-fish_full_data %>% distinct(Species,.keep_all = T) %>% select(Species,Family)
+sp_list_16<-left_join(sp_list_16,sp_fam,by="Species")
+
+sp_list_16$Family[sp_list_16$Species=="Carangoides sp."]<-"Carangidae"
+sp_list_16$Family[sp_list_16$Species=="Pervagor randalli"]<-"Monacanthidae"
+sp_list_16$Family[sp_list_16$Species=="Oxycheilinus mentalis"]<-"Labridae"
+sp_list_16$Family[sp_list_16$Species=="Pomacanthus maculosus"]<-"Pomacanthidae"
+sp_list_16$Family[sp_list_16$Species=="Arothron stellatus"]<-"Tetraodontidae"
+sp_list_16$Family[sp_list_16$Species=="Pempheris vanicolensis"]<-"Pempheridae"
+sp_list_16$Family[sp_list_16$Species=="Tetrosomus gibbosus"]<-"Tetraodontidae"
+```
+
+add the Species_group to each of the species
+
+```{r}
+spp_list <- sp_list_16 %>% filter(str_detect(sp_list_16$Species,"spp")==T)
+
+word(sp_fam$Species, 1)
+
+sp_fam$sp_group<-ifelse(sp_fam$Species %in% sp_list_16$Species,
+                        sp_fam$Species,sp_fam$Family)
+
+sp_fam$sp_group<-ifelse(sp_fam$Species %in% sp_list_16$Species,
+                        sp_fam$Species,
+                        ifelse(word(sp_fam$Species,1) %in% word(spp_list$Species,1),
+                         "test",sp_fam$Family))
+
+```
+
+Here i need to 
+
+
+```{r}
+only_test<-sp_fam %>% filter(sp_fam$sp_group=="test")
+
+for(i in 1:nrow(only_test)){
+  
+  one_line<-only_test[i,]
+  my_value<-which(word(spp_list$Species,1) %in% word(one_line$Species,1))
+  only_test$sp_new_group[i]<-(spp_list$Species[my_value])
+  
+    }
+
+
+```
+
+
+
+```{r}
+unite<-only_test %>% select(Species,sp_new_group)
+combine<-left_join(sp_fam,unite,by="Species")
+
+combine$sp_group<-ifelse(combine$sp_group=="test",combine$sp_new_group,combine$sp_group)
+
+combine<-combine %>% select(Species,sp_group) %>% rename("Species_grouped"="sp_group")
+```
+
+
+```{r}
+fish_full_data<-left_join(fish_full_data,combine,by="Species")
+
+fish_full_data<-fish_full_data %>% relocate(Species_grouped, .after = Species)
+
+```
+
+
+```{r}
+
+test<-fish_full_data %>% distinct(Species_grouped)
+```
+
+Lethrinidae,Lethrinus spp.,Lutjanidae
+
+Mugilidae,Mugilidae spp.
+
+Pinguipedidae,Pinguipedidae spp.
+
+Scaridae,Scaridae spp.
+
+Scorpaenidae,Scorpaenopsis spp.
+
+Syngnathidae,Syngnathidae spp.
+
+Synodontidae,Synodontidae spp.
+
+NA??

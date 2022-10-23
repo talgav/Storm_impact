@@ -1,0 +1,284 @@
+---
+title: "9.2 fuzzyQ"
+author: "TG"
+date: "15 5 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(mobr)
+library(FuzzyQ)
+
+```
+
+# Data organizing
+
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+filter the north beach
+
+```{r}
+one_observer<-one_observer %>% filter(Site !="North beach")
+```
+
+
+add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+add knoll id to see the surface area distrabution and filter small or big knolls
+
+based on the mean & sd the range is 8.2-29.6 
+
+```{r}
+one_observer<- one_observer %>% mutate(site_knoll=paste(Site,Knoll,sep="_"))
+
+knoll<- one_observer %>% distinct(site_knoll,.keep_all = T)
+#hist(knoll$Surface.Area)
+
+ggplot(data = knoll, aes(x=Surface_Area)) + 
+  geom_histogram(binwidth = 2,color="black", fill="lightblue")+ theme_bw() +
+  scale_x_continuous(breaks = seq(0, 70, 2),lim = c(0,70))
+
+mean(knoll$Surface_Area,na.rm = T)
+sd(knoll$Surface_Area,na.rm = T)
+
+filter_knoll<-knoll %>% filter(between(Surface_Area,8.2,29.6))
+
+filter_knoll %>% group_by(Site) %>% summarise(n=n())
+
+
+```
+
+filter the data...
+
+```{r}
+
+fuzzy_prep<-one_observer %>% filter(site_knoll %in% filter_knoll$site_knoll)
+
+fuzzy_prep<- fuzzy_prep %>%
+  group_by(site_knoll,year_month,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+fuzzy_prep<-spread(fuzzy_prep,Species_2015,aboundance,fill = 0)
+```
+
+test for 1 year only
+
+```{r eval=FALSE, include=FALSE}
+fuzzy_prep_2015<-fuzzy_prep %>% filter(year_month=="2015 b")
+
+matric_fuzzy<-fuzzy_prep_2015[,3:ncol(fuzzy_prep_2015)]
+
+fuzzy <- fuzzyq(matric_fuzzy)
+
+paste(name,"fuzz",sep = "_")<-fuzzyq(matric_fuzzy)
+
+AOplot(fuzzy)
+AOplot(fuzzy,log.y = T)
+AOplot(fuzzy,log.y = T,log.x = T)
+
+fuzzy_boot <- fuzzyqBoot(matric_fuzzy)
+fuzzy_boot_global <- fuzzyqBoot(matric_fuzzy,level = "global")
+fuzzyci <- fuzzyqCI(fuzzy_boot)
+sort<-sortClus(fuzzyci,fuzzy)
+
+
+spp <- fuzzy$spp
+col.RC <- c("brown2", "turquoise3") 
+
+plot(spp[, 3], cex.axis = 0.8, xaxt= 'n', ylab = "Commoness index",
+ylim = c(0, max(sort)), xlab = "Species", col = col.RC[spp[, 1] + 1],
+pch = 16, cex = 0.8, las = 1)
+ebar.int <- seq_len(nrow(spp))
+arrows(ebar.int, sort["Lower", ], ebar.int, sort["Upper", ],
+length= 0, col = col.RC[spp[, 1] + 1])
+axis(1, at = ebar.int, labels = rownames(spp), las = 2, cex.axis = 0.6)
+
+fuzzy_sp_index<-fuzzy[["spp"]]
+fuzzy_sp_index<-fuzzy_sp_index %>% as_data_frame(fuzzy_sp_index, rownames = "Species")
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+fuzzy_sp_index$cluster<-as.factor(fuzzy_sp_index
+                                  $cluster)
+
+
+
+ggplot(data = fuzzy_sp_index[,],aes(x= reorder(Species,sil_width),y= sil_width,fill = cluster))+geom_bar(stat = "identity")+ theme(axis.text.x = element_text(angle = 90))
+
+ggplot(data = fuzzy_sp_index[1:30,],aes(x= reorder(Species,sil_width),y= sil_width,fill = cluster))+geom_bar(stat = "identity")+ theme(axis.text.x = element_text(angle = 90))
+
+boxplot(fuzzy_boot_global[["fq.rep"]])
+
+
+```
+
+loop it for all year:
+
+
+```{r}
+
+loop<-1
+fuz_list<-list()
+
+for (i in unique(fuzzy_prep$year_month)) {
+  
+  
+  one_yr<- fuzzy_prep %>% filter(year_month == i)
+  name <- unique(one_yr$year_month)
+  
+  one_yr<-one_yr[,3:ncol(one_yr)]
+
+  
+  fuzzy <- fuzzyq(one_yr)
+  
+  data<-fuzzy[["spp"]]
+
+  data<-data %>% as_data_frame(data, rownames = "Species") %>% mutate("year"=rep(name))
+  data<-data %>% arrange(sil_width)
+  data$cluster<-as.factor(data$cluster)
+  
+  fuz_list[[loop]]<-data
+  loop<-loop+1
+  assign(paste("fuzzyQ",name,sep = "_"),fuzzy) 
+  
+}
+
+all_fuzz<-bind_rows(fuz_list)
+
+all_fuzz<-all_fuzz %>% separate(year,c("year","month"))
+all_fuzz$month<-ifelse(all_fuzz$month == "a","10_1","6_1")
+all_fuzz<-all_fuzz %>% unite(year_month,year,month,sep = "_")
+all_fuzz$year_month<-ymd(all_fuzz$year_month)
+all_fuzz<-all_fuzz %>% arrange(Species,year_month)
+
+
+
+ggplot(all_fuzz[1:90,],aes(x=year_month,y=Common.I,color = Species))+
+  geom_line()+
+  geom_point()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+ggplot(all_fuzz[91:198,],aes(x=year_month,y=Common.I,color = Species))+
+  geom_line()+
+  geom_point()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+
+
+all_fuzz$cluster <-as.character(all_fuzz$cluster)
+all_fuzz$cluster <-as.numeric(all_fuzz$cluster)
+all_fuzz<-all_fuzz %>% filter(year_month != "2017-06-01") %>% group_by(Species) %>% mutate("group_sum"= sum(cluster)) 
+
+all_fuzz$group_sum<-ifelse(all_fuzz$group_sum == 0,"allways rare",
+                           ifelse(all_fuzz$group_sum == 5,"allways common","shift"))
+
+ggplot(all_fuzz,aes(x=year_month,y=Common.I,color = group_sum,group = Species))+
+  geom_line(aes(group = Species))+
+  geom_point()+ 
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+
+ggplot(all_fuzz,aes(x=year_month,y=Common.I,color = group_sum))+
+  geom_point(aes(group = Species))+geom_jitter()+
+ geom_smooth()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+
+shift_sp<-all_fuzz %>% filter(group_sum =="shift") %>% filter(year_month!="2017-06-01")
+
+ggplot(shift_sp[1:25,],aes(x=year_month,y=Common.I,color = Species))+
+  geom_line()+
+  geom_point()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+ggplot(shift_sp[26:50,],aes(x=year_month,y=Common.I,color = Species))+
+  geom_line()+
+  geom_point()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+ggplot(shift_sp[51:75,],aes(x=year_month,y=Common.I,color = Species))+
+  geom_line()+
+  geom_point()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+ggplot(shift_sp[76:105,],aes(x=year_month,y=Common.I,color = Species))+
+  geom_line()+
+  geom_point()+
+ geom_hline(yintercept=0.5, linetype="dashed")
+
+
+
+
+sp_stat_list <- all_fuzz %>% select(Species,group_sum) %>% distinct(Species,.keep_all = T) 
+
+sp_stat_list %>% group_by(group_sum) %>% summarise(n=n())
+```
+
+find out which is the most common species in each year
+
+```{r}
+
+all_fuzz<-all_fuzz %>% arrange(year_month,Common.I,decreasing = FALSE)
+
+```
+

@@ -1,0 +1,1371 @@
+---
+title: "1.1 data wrangling"
+author: "TG"
+date: "9/11/2020"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r message=TRUE, warning=TRUE, include=FALSE}
+
+library(tidyverse)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(rfishbase)
+library(lubridate)
+
+select <- dplyr::select
+rename <-dplyr::rename
+```
+
+
+Upload all the data:
+
+```{r}
+data_2015<-read.csv("raw data to use\\Fish_2015.csv")
+data_2016<-read.csv("raw data to use\\Fish data 2016.csv")
+data_2017<-read.csv("raw data to use\\Fish data 2017.csv")
+data_2018<-read.csv("raw data to use\\2018 raw.csv")
+data_2020_june<-read.csv("raw data to use\\complete data knolls june 2020.csv")
+data_2020_oct<-read.csv("raw data to use\\EcoCamp October 2020 - Data after fixes.csv")
+data_2021_june<-read.csv("raw data to use\\EcoCamp June 2021 updated.csv")
+knoll_mdata<-read.csv("raw data to use\\knoll_meta_data_until_2020_edited.csv")
+knoll_data_2020<-read.csv("raw data to use\\knoll_data_2020.csv")
+species_spp<-read.csv("raw data to use\\species_spp_full.csv")# family names for spp. species
+species_status<-read.csv("raw data to use\\species_list_2020.csv") # transient/cryptic species
+
+```
+
+2015
+
+```{r}
+#summary(data_2015)
+
+data_2015_cleaned = data_2015 %>%
+  mutate(Year = "2015",Date = dmy(Date)) %>%
+  rename(Length = Length_cm, Abundance = Number_Ind) %>%
+  select(Site,Knoll,Year,Date,Observer,Species,Abundance,Length)
+
+
+data_2015_cleaned$Confidence<-rep(NA)
+```
+
+2016
+
+```{r}
+#summary(data_2016)
+
+data_2016 = data_2016[,1:7]
+
+data_2016_cleaned = data_2016 %>%
+  mutate(Year = "2016",Date = dmy(date)) %>%
+  rename(Abundance = Number_Ind) %>%
+  select(Site,Knoll,Year,Date,Observer,Species,Abundance,Length)
+data_2016_cleaned$Confidence <-NA
+```
+
+2017
+
+```{r}
+#summary(data_2017)
+
+#observer by name, not left/right
+data_2017$Left.observer = as.character(data_2017$Left.observer)
+data_2017$Right.observer = as.character(data_2017$Right.observer)
+data_2017$Observer = ifelse(data_2017$Direction == "Left", 
+                            data_2017$Left.observer,
+                            data_2017$Right.observer)
+
+data_2017_cleaned = data_2017 %>%
+  mutate(Year = "2017",Date = dmy(Trip.date)) %>%
+  rename(Knoll = SiteNo, Site = Location, Abundance = Number_Ind) %>%
+  select(Site,Knoll,Year,Date,Observer,Species,Abundance,Length)
+
+data_2017_cleaned$Confidence <-NA
+
+```
+
+2018
+
+```{r}
+#colnames(data_2018)
+
+#observer by name, not left/right
+
+data_2018$Observer = ifelse(data_2018$Direction == "Left", 
+                            data_2018$Left.observer,
+                            data_2018$Right.observer)
+
+
+#rename some columns
+		
+data_2018<-data_2018 %>% rename(Knoll = SiteNo, Site = Location,Abundance = Number_Ind,Confidence = Distance)
+	
+data_2018$Site[data_2018$Site=="Reserve"]<-"NR"
+
+
+data_2018_cleaned = data_2018 %>%
+  mutate(Year = "2018", Date = ymd(Trip.date)) %>%
+  select(Site,Knoll,Year,Date,Observer,Species,Abundance,Length,Confidence)
+
+#remove unexperienced observers
+unique(data_2018_cleaned$Observer)
+
+data_2018_cleaned = data_2018_cleaned %>%
+  filter(Observer != "Liron Kraushar")
+
+data_2018_cleaned$Knoll[data_2018_cleaned$Knoll=="TAMAR"]<-"Tamar"
+
+data_2018_cleaned$Confidence[is.na(data_2018_cleaned$Confidence)]<-0
+```
+
+June 2020
+
+```{r}
+
+#summary(data_2020_june)
+#colnames(data_2020_june)
+
+
+
+data_2020_june$Observer = ifelse(data_2020_june$Observer == "first", 
+                            data_2020_june$First.Observer,
+                            data_2020_june$Second.Observer)
+
+data_2020_june_cleaned = data_2020_june %>%
+  rename(Site = Location, Abundance = Amount) %>%
+  mutate(Date = ymd_hms(Date),Year = year(Date)) %>% 
+  select(Site,Knoll,Year,Date,Observer,Species, Abundance, Length,Confidence) 
+
+data_2020_june_cleaned$Site = as.character(data_2020_june_cleaned$Site) 
+data_2020_june_cleaned$Year = as.character(data_2020_june_cleaned$Year) 
+
+data_2020_june_cleaned$Site[data_2020_june_cleaned$Site == "Nature Reserve"] = "NR"
+data_2020_june_cleaned$Confidence[is.na(data_2020_june_cleaned$Confidence)]<-0
+
+```
+
+october 2020
+
+```{r}
+
+#summary(data_2020_oct)
+#colnames(data_2020_oct)
+
+
+
+data_2020_oct$Observer = ifelse(data_2020_oct$Observer == "first", 
+                            data_2020_oct$First.Observer.x,
+                            data_2020_oct$Second.Observer.x)
+
+
+ 
+data_2020_oct_cleaned = data_2020_oct %>%
+  rename(Site = Location, Abundance = Amount) %>%
+  mutate(Date = ymd_hms(Date),Year = year(Date)) %>% 
+  select(Site,Knoll,Year,Date,Observer,Species, Abundance, Length,Confidence) 
+
+data_2020_oct_cleaned$Site = as.character(data_2020_oct_cleaned$Site) 
+data_2020_oct_cleaned$Year = as.character(data_2020_oct_cleaned$Year) 
+
+data_2020_oct_cleaned$Site[data_2020_oct_cleaned$Site == "Reserve"] = "NR"
+data_2020_oct_cleaned$Site[data_2020_oct_cleaned$Site == ""] = "North beach"
+data_2020_oct_cleaned$Knoll[data_2020_oct_cleaned$Site == "Tamar"] = "Tamar" 
+data_2020_oct_cleaned$Site[data_2020_oct_cleaned$Site == "Tamar"] = "NR"
+
+data_2020_oct_cleaned$Confidence[is.na(data_2020_oct_cleaned$Confidence)]<-0
+
+
+```
+
+June 2021
+
+```{r}
+#summary(data_2021_june)
+#colnames(data_2021_june)
+
+
+
+data_2021_june$Observer = ifelse(data_2021_june$Observer == "first", 
+                            data_2021_june$First.Observer.x,
+                            data_2021_june$Second.Observer.x)
+
+
+
+data_2021_june_cleaned = data_2021_june %>%
+  rename(Site = Location, Abundance = Amount) %>%
+  mutate(Date = ymd_hms(Date),Year = year(Date)) %>% 
+  select(Site,Knoll,Year,Date,Observer,Species, Abundance, Length,Confidence) 
+
+data_2021_june_cleaned$Site = as.character(data_2021_june_cleaned$Site) 
+data_2021_june_cleaned$Year = as.character(data_2021_june_cleaned$Year) 
+
+data_2021_june_cleaned$Site[data_2021_june_cleaned$Site == "Reserve"] = "NR"
+
+data_2021_june_cleaned<-data_2021_june_cleaned %>% drop_na(Knoll)
+
+data_2021_june_cleaned$Confidence[is.na(data_2021_june_cleaned$Confidence)]<-0
+
+
+```
+
+
+
+Unite the data frames
+
+
+```{r}
+fish_full_data = rbind.data.frame(data_2015_cleaned,data_2016_cleaned,data_2017_cleaned,data_2018_cleaned,data_2020_june_cleaned,data_2020_oct_cleaned,data_2021_june_cleaned)
+
+```
+
+
+
+
+fix typos - observer name and sites
+
+```{r}
+names<-data_frame("name" = unique(fish_full_data$Observer))
+
+
+fish_full_data$Observer[fish_full_data$Observer== "Chaikin Shahar"]<-"Shahar Chaikin"
+fish_full_data$Observer[fish_full_data$Observer== "Corrine Jacobs"]<-"Corrine Avidan"
+fish_full_data$Observer[fish_full_data$Observer== "Hagar Yancovitch"]<-"Hagar yancovitch shalom"
+fish_full_data$Observer[fish_full_data$Observer== "Hava Wendel"]<-"Hava Wandel"
+fish_full_data$Observer[fish_full_data$Observer== "Itay Granot"]<-"Itai Granot"
+fish_full_data$Observer[fish_full_data$Observer== "Noa moshkowitz"]<-"Noa Moshkowitz"
+fish_full_data$Observer[fish_full_data$Observer== "Tal Gavrely"]<-"Tal Gavriel"
+fish_full_data$Observer[fish_full_data$Observer== "Tal Gavrieli"]<-"Tal Gavriel"
+fish_full_data$Observer[fish_full_data$Observer== "Tal Gavriely"]<-"Tal Gavriel"
+fish_full_data$Observer[fish_full_data$Observer== "Liron Kraushar‏"]<-"Liron Kraushar"
+fish_full_data$Observer[fish_full_data$Observer== "Liraz Levy"]<-"Liraz Levi"
+
+names<-data_frame("name" = unique(fish_full_data$Observer))
+rm(names)
+
+fish_full_data$Site[fish_full_data$Site=="Kazza"]<-"Katza"
+
+
+
+```
+
+find o and d who survey in a
+
+```{r}
+ms_writers<- fish_full_data %>% mutate("year_month"= paste(Year,month(Date),sep = "_")) %>% filter(year_month %in% c("2020_6","2018_9")) 
+
+ms_writers<-ms_writers%>%  distinct(Observer)
+
+
+
+#write.csv(ms_writers,"ms_writers.csv")
+```
+
+
+
+insert correction to knolls number
+
+knoll 21 in Princess should change to 22 after the storm (2020)
+knoll 10 in the Princess should change to 23 after the storm (2020)
+
+Those knoll was documented under the same knoll but the knoll was destroy in the storm and we actually surveyed different knoll!
+
+
+```{r}
+
+
+
+fish_full_data$Knoll<-ifelse(fish_full_data$Site =="Princess" & fish_full_data$Year >2018 & fish_full_data$Knoll =="21",22,fish_full_data$Knoll)
+
+fish_full_data$Knoll<-ifelse(fish_full_data$Site =="Princess" & fish_full_data$Year >2018 & fish_full_data$Knoll =="10",23,fish_full_data$Knoll)
+
+
+
+```
+
+
+fix typos in species names
+
+```{r}
+species<-data_frame("sp" = unique(fish_full_data$Species))
+
+fish_full_data$Species<-str_to_lower(fish_full_data$Species)
+fish_full_data$Species<-capitalize(fish_full_data$Species)
+fish_full_data$Species<-str_to_title(fish_full_data$Species)
+
+fish_full_data$Species[fish_full_data$Species==""]<-NA
+fish_full_data$Species[fish_full_data$Species=="Diplodus Noct "]<-"Diplodus Noct"
+fish_full_data$Species[fish_full_data$Species=="Chromis Virdis"]<-"Chromis Viridis"
+fish_full_data$Species[fish_full_data$Species=="Amblyeleotris Steinitzi "]<-"Amblyeleotris Steinitzi"
+fish_full_data$Species[fish_full_data$Species=="Amblyeleotris Sungami "]<-"Amblyeleotris Sungami"
+fish_full_data$Species[fish_full_data$Species=="Amblygobius Albimaculatus "]<-"Amblygobius Albimaculatus"
+
+fish_full_data$Species[fish_full_data$Species=="Fusigobius Longspinus"]<-"Fusigobius Longispinus"
+fish_full_data$Species[fish_full_data$Species=="Coryphopterus Longispinus"]<-"Fusigobius Longispinus"
+fish_full_data$Species[fish_full_data$Species=="Macropharyngodon Bipartitus Marisrubri"]<-"Macropharyngodon Bipartitus"
+fish_full_data$Species[fish_full_data$Species=="Mugilidae Sp"]<-"Mugilidae Spp."
+fish_full_data$Species[fish_full_data$Species=="Paracirrhites Forsteri "]<-"Paracirrhites Forsteri"
+fish_full_data$Species[fish_full_data$Species=="Plectroglyphidodon Spp"]<-"Plectroglyphidodon Spp."
+fish_full_data$Species[fish_full_data$Species=="Pomacenthus Spp."]<-"Pomacanthus Spp."
+fish_full_data$Species[fish_full_data$Species=="Pomacentrus Trichourus"]<-"Pomacentrus Trichrourus"
+fish_full_data$Species[fish_full_data$Species=="Serranidae Spp"]<-"Serranidae Spp."
+fish_full_data$Species[fish_full_data$Species=="Thalassoma Lunare              "]<-"Thalassoma Lunare"
+fish_full_data$Species[fish_full_data$Species=="Zebrasoma Veliferum"]<-"Zebrasoma Desjardinii"
+fish_full_data$Species[fish_full_data$Species=="Gymnothorax Javenicus"]<-"Gymnothorax javanicus"
+fish_full_data$Species[fish_full_data$Species=="Scorpaenodes Paravipinnis"]<-"Scorpaenodes parvipinnis"
+fish_full_data$Species[fish_full_data$Species=="Mulliodes Vanicolensis"]<-"Mulloidichthys vanicolensis"
+
+
+fish_full_data$Species<-str_to_lower(fish_full_data$Species)
+fish_full_data$Species<-capitalize(fish_full_data$Species)
+
+fish_full_data<-fish_full_data[!is.na(fish_full_data$Species),]
+
+
+
+species<-data_frame("Species" = unique(fish_full_data$Species))
+```
+
+
+make sure we use the valid names from fishbase
+
+
+```{r}
+
+valid_name <-validate_names(species$Species)
+
+species$valid<-ifelse(species$Species %in% valid_name,"valid","not valid")
+
+species_v<-species %>% filter(species$valid == "not valid")
+species_v<-species_v %>% filter(str_detect(species_v$Species,"spp")==F)
+species_v<-species_v %>% filter(str_detect(species_v$Species,"sp.")==F)
+ 
+new_name<-species_v$Species %>% synonyms() %>% 
+ select(provided_name = synonym, valid_name = Species, Comment = Status) %>% 
+  filter(Comment == "synonym") %>% rename(Species = provided_name)
+
+fish_full_data<-left_join(fish_full_data,new_name,by="Species")
+
+fish_full_data$Species<-ifelse(!is.na(fish_full_data$valid_name),
+                                fish_full_data$valid_name,
+                                fish_full_data$Species)
+
+fish_full_data<-fish_full_data[,1:9]
+
+species<-data_frame("Species" = unique(fish_full_data$Species))
+
+```
+
+
+add family names
+
+```{r}
+
+taxa<-load_taxa()
+taxa_family<-taxa %>% select(Species,Family)
+taxa_family<-as.data.frame(taxa_family)
+species<-left_join(species,taxa_family,by="Species")
+
+species_nona<-na.omit(species)
+
+# here I manually insert the family names for the spp. species
+# species_spp<-species[is.na(species$Family),]
+# write.csv(species_spp,"species_spp.csv")
+
+
+
+family<-rbind(species_nona,species_spp)
+
+fish_full_data<-left_join(fish_full_data,family,by="Species")
+
+```
+
+clean environment
+```{r}
+rm(list=setdiff(ls(), c("fish_full_data","knoll_mdata","species_status")))
+
+select <- dplyr::select
+rename <-dplyr::rename
+```
+
+some very last corrections that are somehow still presents
+
+```{r}
+
+
+fish_full_data$Family[fish_full_data$Species=="Fusigobius longispinus"] <-"Gobiidae"
+
+fish_full_data$Species<-str_to_lower(fish_full_data$Species)
+fish_full_data$Species<-capitalize(fish_full_data$Species)
+
+Species<-data.frame("Species"=unique(fish_full_data$Species))
+Family<-data.frame("Family"=unique(fish_full_data$Family))
+
+fish_full_data$Family[fish_full_data$Family=="Caesionidae "]<-"Caesionidae"
+fish_full_data$Species[fish_full_data$Species=="Cheilinus trilobatus"]<- "Cheilinus abudjubbe"
+fish_full_data$Species[fish_full_data$Species=="Goby spp."]<- "Gobiidae spp."
+```
+
+Add survey id (so later on if needed i could choose one surveyor from each survey)
+
+```{r}
+fish_full_data<-fish_full_data %>%  mutate("survey_id"= paste(Site,Knoll,Date,sep = "_"),.after = Date)
+```
+
+make a list of all the surveys (later on make sure we have all the data!)
+
+```{r}
+survey_list<-fish_full_data %>% select(1:6) %>% distinct(.keep_all = T) 
+
+list_o<-list()
+loop<-1 
+
+for (i in unique(survey_list$survey_id)) {
+
+  survey_unique<-survey_list %>% filter(survey_id == i)
+  survey_unique$observer_n<-paste("observer",seq(1:nrow(survey_unique)),sep="_")
+  list_o[[loop]]<-survey_unique
+  loop<-loop+1
+  
+}
+
+survey_list<-bind_rows(list_o)
+
+
+survey_list<-spread(survey_list,observer_n,Observer)
+
+survey_list<-survey_list %>% filter(Knoll != c("Tamar",
+                                               "South bridge reserve",
+                                               "south bridge reserve",
+                                               "North bridge reserve",
+                                               "north bridge reserve")) %>% 
+  mutate(Knoll = as.numeric(Knoll)) %>% arrange(Date,Site,Knoll)
+
+
+
+
+```
+
+surveyors to remove 
+
+```{r}
+
+unique(fish_full_data$Observer)
+
+to_remove<-c("Liron Kraushar","Inbal Gamliel","Yamit Romano",
+             "Adi Barash","Noam Ben Moshe","Rei Diga","Idan Doyev","Jenny Tynyakov",
+             "Yuval Goth","Shir Bar","Julia Cerutti")
+
+fish_full_data <- fish_full_data %>% filter(!Observer %in% to_remove)
+
+fish_full_data$year_observer<-paste(fish_full_data$Observer,fish_full_data$Year, sep = "_")
+
+to_remove_yearly <- c("Hagar yancovitch shalom_2015",
+                      "Tal Gavriel_2016","Noam Sommerfeld_2016",
+                      "Sarah Ohayon_2018",
+                      "Noy Shapira_2020")
+
+fish_full_data <- fish_full_data %>% filter(!year_observer %in% to_remove_yearly)
+                    
+
+```
+
+# Knoll data
+
+** when we will have the new data of knoll size after the storm -> combine here
+
+```{r}
+
+knoll_mdata <- knoll_mdata %>% dplyr::rename(Mean_comp_ind = Mean.Comp..Ind.,                                      projected_area_ellipse = projected.area..ellipse.) %>% 
+  mutate("strom" = rep('before'),
+         knoll_id = paste(knoll_mdata$Site,knoll_mdata$Knoll,sep = "_")) %>% select(-Knoll,-Site )
+
+
+
+fish_full_data$knoll_id<-paste(fish_full_data$Site,fish_full_data$Knoll,sep = "_")
+fish_full_data<-left_join(fish_full_data,knoll_mdata,by="knoll_id")
+
+```
+
+
+
+add if species is Transiant or cryptic
+
+```{r}
+species_status<-species_status %>% select(-X) %>% dplyr::rename(Species = species, Status = leter)
+
+species_status<-species_status[-which(duplicated(species_status$Species)),]
+
+fish_full_data<-left_join(fish_full_data,species_status,by="Species")
+
+
+```
+
+
+change manually the ststus for the fish
+
+```{r}
+fish_full_data$Status[fish_full_data$Species=="Abudefduf sordidus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Abudefduf spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Acanthurus spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Aetobatus narinari"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Amblyglyphidodon indicus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Amblyglyphidodon spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Amblygobius hectori"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Anampses spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Apogon annularis"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Apogon spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Apogon zebrinus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Arothron spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Aspidontus dussumieri"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Aspidontus taeniatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Aspidontus tractus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Asterropteryx semipunctata"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Balistidae spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Blenniella periophthalmus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Caesio spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Canthigaster spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Cantherhines dumerilii"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Cheilodipterus spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Chlorurus gibbus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Chromis spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Cirrhitichthys oxycephalus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Coryphopterus longispinus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Cryptocentrus caeruleopunctatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Dascyllus trimaculatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Diodon holocanthus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Diodon hystrix"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Diodon spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Dunckerocampus multiannulatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Ecsenius midas"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Epinephelus malabaricus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Exallias brevis"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Fusigobius neophytus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Gobiidae spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Gerres oyena"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Gymnothorax griseus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Gymnothorax javenicus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Halichoeres spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Haliophis guttatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Haliophis sp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Hemiramphus far"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Heniochus spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Hyporhamphus gamberur"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Inimicus filamentosus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Labroides dimidiatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Labrid spp. "]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Lethrinus spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Larabicus quadrilineatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Lotilia graciliosa"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Lutjanus bohar"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Macropharyngodon bipartitus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Monacanthidae spp. "]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Mugilidae spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Mullidae spp. "]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Mulliodes vanicolensis"]<- "T" #CHECK!
+fish_full_data$Status[fish_full_data$Species=="Muraenidae spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Myrichthys maculosus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Nectamia annularis"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Nectamia zebrinus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Neoglyphidodon melas"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Ostracion spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Ostorhinchus fleurieu"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Ostorhinchus cyanosoma"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Oxymonacanthus halli"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Papilloculiceps longiceps"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Parapriacanthus ransonneti"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Pinguipedidae spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Plagiotremus spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Plectroglyphidodon leucozonus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Plectroglyphidodon spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Pomacanthus spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Pomacentrus trilineatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Pomacentrus trichrourus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Pseudanthias spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Pseudochromis spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Pristiapogon exostigma"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Parupeneus macronemus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Salarias fasciatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Sargocentron rubrum"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Sargocentron spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Scaridae spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Scorpaenopsis diabolus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Scorpaenopsis spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Serranidae spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Siganus  spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Stethojulis spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Synanceia verrucosa"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Syngnathidae spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Synodontidae spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Synodus variegatus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Sufflamen albicaudatum"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Thalassoma spp."]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Torpedo panthera"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Torpedo spp."]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Taeniura lymma"]<- "T"
+
+
+fish_full_data$Status[fish_full_data$Species=="Decapterus macarellus"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Gymnothorax javanicus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Kyphosus vaigiensis"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Mimoblennius cirrosus"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Mulloidichthys vanicolensis"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Nectamia zebrina"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Ostracion cubicum"]<- "T"
+fish_full_data$Status[fish_full_data$Species=="Scorpaenodes parvipinnis"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Scuticaria tigrina"]<- "C"
+fish_full_data$Status[fish_full_data$Species=="Taeniamia fucata"]<- "C"
+
+
+
+```
+
+
+check which fish dont have status
+
+```{r}
+stastus_check<-fish_full_data %>% group_by(Species,Status) %>% summarise(n=n())
+which(duplicated(stastus_check$Species))
+```
+
+Add the "downgraded" Species name (to compare data from 2015/16 to 2018/20)
+
+```{r}
+
+sp_list_16<-read.csv("raw data to use\\sp_list_2016.csv")
+```
+
+
+add Family to the sp_list
+
+```{r}
+sp_list_16$Species[sp_list_16$Species=="Chromis virdis"]<-"Chromis viridis"
+sp_list_16$Species[sp_list_16$Species=="Zebrasoma veliferum"]<-"Zebrasoma desjardinii"
+sp_list_16$Species[sp_list_16$Species=="Sufflamen albicaudatus"]<-"Sufflamen albicaudatum"
+sp_list_16$Species[sp_list_16$Species=="Cantherhines dumerili"]<-"Cantherhines dumerilii"
+sp_list_16$Species[sp_list_16$Species=="Cheilinus trilobatus"]<-"Cheilinus abudjubbe"
+sp_list_16$Species[sp_list_16$Species=="Parupeneus macronema"]<-"Parupeneus macronemus"
+sp_list_16$Species[sp_list_16$Species=="Pomacentrus trichourus"]<-"Pomacentrus trichrourus"
+sp_list_16$Species[sp_list_16$Species=="Paracirrhites forsteri "]<-"Paracirrhites forsteri"
+sp_list_16$Species[sp_list_16$Species=="Carangoides sp. "]<-"Carangoides sp."
+sp_list_16$Species[sp_list_16$Species=="Oxycheilinus mentalis "]<-"Oxycheilinus mentalis"
+sp_list_16$Species[sp_list_16$Species=="Sphyraena flavicauda "]<-"Sphyraena flavicauda"
+sp_list_16$Species[sp_list_16$Species=="taeniura lymma"]<-"Taeniura lymma"
+sp_list_16$Species[sp_list_16$Species=="Tetrosomus gibbosus "]<-"Tetrosomus gibbosus"
+
+```
+
+
+```{r}
+sp_fam<-fish_full_data %>% distinct(Species,.keep_all = T) %>% select(Species,Family)
+sp_list_16<-left_join(sp_list_16,sp_fam,by="Species")
+
+sp_list_16$Family[sp_list_16$Species=="Carangoides sp."]<-"Carangidae"
+sp_list_16$Family[sp_list_16$Species=="Pervagor randalli"]<-"Monacanthidae"
+sp_list_16$Family[sp_list_16$Species=="Oxycheilinus mentalis"]<-"Labridae"
+sp_list_16$Family[sp_list_16$Species=="Pomacanthus maculosus"]<-"Pomacanthidae"
+sp_list_16$Family[sp_list_16$Species=="Arothron stellatus"]<-"Tetraodontidae"
+sp_list_16$Family[sp_list_16$Species=="Pempheris vanicolensis"]<-"Pempheridae"
+sp_list_16$Family[sp_list_16$Species=="Tetrosomus gibbosus"]<-"Tetraodontidae"
+```
+
+add the Species_group to each of the species
+
+```{r}
+spp_list<- sp_list_16 %>% filter(str_detect(sp_list_16$Species,"spp")==T)
+
+
+sp_fam$sp_group<-ifelse(sp_fam$Species %in% sp_list_16$Species,
+                        sp_fam$Species,
+                        ifelse(word(sp_fam$Species,1) %in% word(spp_list$Species,1),
+                         "test",sp_fam$Family))
+
+```
+
+Here i need to 
+
+
+```{r}
+only_test<-sp_fam %>% filter(sp_fam$sp_group=="test")
+
+for(i in 1:nrow(only_test)){
+  
+  one_line<-only_test[i,]
+  my_value<-which(word(spp_list$Species,1) %in% word(one_line$Species,1))
+  only_test$sp_new_group[i]<-(spp_list$Species[my_value])
+  
+    }
+
+
+```
+
+
+
+```{r}
+unite<-only_test %>% select(Species,sp_new_group)
+combine<-left_join(sp_fam,unite,by="Species")
+
+combine$sp_group<-ifelse(combine$sp_group=="test",combine$sp_new_group,combine$sp_group)
+
+combine<-combine %>% select(Species,sp_group) %>% rename("Species_grouped"="sp_group")
+```
+
+
+```{r}
+fish_full_data<-left_join(fish_full_data,combine,by="Species")
+
+fish_full_data<-fish_full_data %>% relocate(Species_grouped, .after = Species)
+
+```
+
+
+fix cases i have 'Apogon spp.' and 'Apogonidae'
+
+```{r}
+
+test<-fish_full_data %>% distinct(Species_grouped)
+```
+
+
+```{r}
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Lethrinus spp."]<-"Lethrinidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Lutjanidae"]<-"Lethrinidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Mugilidae spp."]<-"Mugilidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Pinguipedidae spp."]<-"Pinguipedidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Scaridae spp."]<-"Scaridae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Scorpaenopsis spp."]<-"Scorpaenidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Syngnathidae spp."]<-"Syngnathidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Synodontidae spp."]<-"Synodontidae"
+fish_full_data$Species_grouped[fish_full_data$Species_grouped=="Apogon spp."]<-"Apogonidae"
+
+fish_full_data<-fish_full_data %>% relocate(Family, .after = Species_grouped)
+fish_full_data<-fish_full_data %>% filter(Confidence < 3 |is.na(Confidence))
+
+```
+
+```{r}
+rm(list=setdiff(ls(), c("fish_full_data","knoll_mdata","survey_list")))
+select <- dplyr::select
+rename <-dplyr::rename
+```
+ 
+# 2015 species list
+
+```{r}
+sp_list_15 <- read.csv("raw data to use\\sp_list_2015.csv")
+
+sp_list_15<-sp_list_15 %>% select(Species)
+
+sp_list_15$Species<-str_to_lower(sp_list_15$Species)
+sp_list_15$Species<- capitalize(sp_list_15$Species)
+  
+```
+
+fix typos
+```{r}
+
+sp_list_15$Species[sp_list_15$Species=="Sphyraena flavicauda "]<-"Sphyraena flavicauda"
+sp_list_15$Species[sp_list_15$Species=="Zebrasoma veliferum"]<-"Zebrasoma desjardinii"
+sp_list_15$Species[sp_list_15$Species=="Tetrosomus gibbosus "]<-"Tetrosomus gibbosus"
+sp_list_15$Species[sp_list_15$Species=="Chromis virdis"]<-"Chromis viridis"
+sp_list_15$Species[sp_list_15$Species=="Pomacentrus trichourus"]<-"Pomacentrus trichrourus"
+sp_list_15$Species[sp_list_15$Species=="Paracirrhites forsteri "]<-"Paracirrhites forsteri"
+sp_list_15$Species[sp_list_15$Species=="Diplodus noct "]<-"Diplodus noct"
+sp_list_15$Species[sp_list_15$Species==".serranidae spp"]<-"Serranidae spp."
+sp_list_15$Species[sp_list_15$Species=="Carangoides sp. "]<-"Carangoides sp."
+sp_list_15$Species[sp_list_15$Species=="Torpedo spp."]<-"Torpedinidae"	
+ 
+ 
+
+```
+
+add Family names
+ 
+```{r}
+sp_fam<-fish_full_data %>% distinct(Species,.keep_all = T) %>% select(Species,Family)
+
+sp_list_15<-left_join(sp_list_15,sp_fam,by="Species")
+
+sp_list_15$Family[sp_list_15$Species=="Carangoides sp."]<-"Carangidae"
+sp_list_15$Family[sp_list_15$Species=="Serranidae spp."]<-"Serranidae"
+sp_list_15$Family[sp_list_15$Species=="Pempheris vanicolensis"]<-"Pempheridae"
+sp_list_15$Family[sp_list_15$Species=="Tetrosomus gibbosus"]<-"Tetraodontidae"
+sp_list_15$Family[sp_list_15$Species=="Torpedinidae"]<-"Torpedinidae"
+
+
+```
+
+
+
+add the Species_group to each of the species
+
+```{r}
+
+sp_fam<-fish_full_data %>% distinct(Species,Species_grouped,.keep_all = T) %>% select(Species,Species_grouped,Family)
+
+spp_list<- sp_list_15 %>% filter(str_detect(sp_list_15$Species,"spp")==T)
+
+
+sp_fam$sp_2015<-ifelse(sp_fam$Species_grouped %in% sp_list_15$Species,
+                        sp_fam$Species_grouped,
+                        ifelse(word(sp_fam$Species,1) %in% word(spp_list$Species,1),
+                         "test",sp_fam$Family))
+
+```
+
+Here i need to 
+
+
+```{r}
+only_test<-sp_fam %>% filter(sp_fam$sp_2015=="test")
+
+for(i in 1:nrow(only_test)){
+  
+  one_line<-only_test[i,]
+  my_value<-which(word(spp_list$Species,1) %in% word(one_line$Species,1))
+  only_test$sp_new_group[i]<-(spp_list$Species[my_value])
+  
+    }
+
+
+```
+
+
+
+```{r}
+unite<-only_test %>% select(Species,sp_new_group)
+combine<-left_join(sp_fam,unite,by="Species")
+
+combine$sp_2015<-ifelse(combine$sp_2015=="test",combine$sp_new_group,combine$sp_2015)
+
+combine<-combine %>% select(Species,sp_2015) %>% rename("Species_2015"="sp_2015")
+```
+
+
+```{r}
+fish_full_data<-left_join(fish_full_data,combine,by="Species")
+
+fish_full_data<-fish_full_data %>% relocate(Species_2015, .after = Species_grouped)
+
+```
+
+
+
+
+fix cases i have 'Apogon spp.' and 'Apogonidae'
+
+```{r}
+
+test<-fish_full_data %>% distinct(Species_2015)
+```
+
+
+```{r}
+
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Acanthurus spp."]<-"Acanthuridae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Apogon spp."]<-"Apogonidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Balistidae spp."]<-"Balistidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Diodon spp."]<-"Diodontidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Labrid spp. "]<-"Labridae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Lethrinus spp."]<-"Lethrinidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Lutjanidae"]<-"Lethrinidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Mugilidae spp."]<-"Mugilidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Monacanthidae spp. "]<-"Monacanthidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Mullidae spp. "]<-"Mullidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Muraenidae spp."]<-"Muraenidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Pinguipedidae spp."]<-"Pinguipedidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Pomacanthus spp."]<-"Pomacentridae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Pseudochromis spp."]<-"Pseudochromidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Scaridae spp."]<-"Scaridae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Scorpaenopsis spp."]<-"Scorpaenidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Serranidae spp."]<-"Serranidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Syngnathidae spp."]<-"Syngnathidae"
+fish_full_data$Species_2015[fish_full_data$Species_2015=="Synodontidae spp."]<-"Synodontidae"
+
+
+
+```
+
+```{r}
+rm(list=setdiff(ls(), c("fish_full_data","knoll_mdata","survey_list")))
+select <- dplyr::select
+rename <-dplyr::rename
+```
+ 
+
+
+# Convert length to weight - add coefficients
+
+
+```{r}
+
+species <- fish_full_data %>% distinct(Species)
+
+wight_lenght_coeff<-length_weight(species$Species)
+wight_lenght_coeff<-wight_lenght_coeff %>% 
+                       select(Species,Type,Sex,a,b) %>% 
+                                             filter(Type == "TL") %>% 
+  filter(Sex != "juvenile")
+
+
+wight_lenght_coeff<-wight_lenght_coeff %>% group_by(Species) %>% summarise(a = mean(a),b=mean(b))
+
+
+```
+
+* add the species that don't have coeff (spp.)
+
+```{r}
+no_coeff<- species %>% filter(!Species %in% wight_lenght_coeff$Species)
+
+no_coeff$a<- NA
+no_coeff$b<- NA
+
+wight_lenght_coeff<-rbind(wight_lenght_coeff,no_coeff)
+
+```
+
+
+* add Family
+
+```{r}
+
+Family<-fish_full_data %>% select(Species,Species_grouped,Family) %>% distinct(.keep_all = T)
+
+wight_lenght_coeff<-left_join(wight_lenght_coeff,Family,by="Species")
+
+```
+
+* for the spp species- find the mean of all the other species in this data and in the same family
+
+
+1- is it n.a?
+
+2- if true - look for the mean of the grouped name
+
+3 if still NA look for the mean of the family
+
+4 - fill in manually
+
+
+
+```{r}
+
+wight_lenght_coeff<-wight_lenght_coeff %>% group_by(Species_grouped) %>% mutate(mean_a_group = mean(a,na.rm =T),mean_b_group = mean(b,na.rm=T)) %>% ungroup()
+
+wight_lenght_coeff<-wight_lenght_coeff %>% group_by(Family) %>% mutate(mean_a_Family = mean(a,na.rm =T),mean_b_Family = mean(b,na.rm=T)) %>% ungroup()
+
+
+is.nan.data.frame <- function(x)
+  do.call(cbind, lapply(x, is.nan))
+
+wight_lenght_coeff[is.nan(wight_lenght_coeff)] <- NA
+
+
+
+
+
+```
+
+for thelsoma
+0.011810000,3.012667  and not 0.01380875,3.041
+
+```{r}
+
+full_weight_lenght<-wight_lenght_coeff %>% mutate(full_a=coalesce(a,mean_a_group),
+                                                  full_b = coalesce(b,mean_b_group))
+
+
+
+full_weight_lenght<-wight_lenght_coeff %>% mutate(full_a=coalesce(mean_a_group,mean_a_Family),                                                  full_b = coalesce(mean_b_group,mean_b_Family))
+```
+
+fill manually missing varibales
+
+Pseudochromidae - length weight coefficient based on fridmani model estimates from fishbase
+
+
+```{r}
+
+full_weight_lenght$full_a[full_weight_lenght$Family=="Pseudochromidae"]<-0.00501
+full_weight_lenght$full_b[full_weight_lenght$Family=="Pseudochromidae"]<-3.1
+```
+
+Caesionidae - length weight coefficient based on Caesio lunaris model estimates from fishbase
+
+
+```{r}
+
+full_weight_lenght$full_a[full_weight_lenght$Family=="Caesionidae"]<-0.0166
+full_weight_lenght$full_b[full_weight_lenght$Family=="Caesionidae"]<-3.1
+```
+
+Mugilidae - length weight coefficient based on Crenimugil crenilabis model estimates from fishbase
+
+
+```{r}
+
+full_weight_lenght$full_a[full_weight_lenght$Family=="Mugilidae"]<-0.01622
+full_weight_lenght$full_b[full_weight_lenght$Family=="Mugilidae"]<-2.98
+
+```
+
+Pinguipedidae - length weight coefficient based on Parapercis hexophtalma model estimates from fishbase
+
+```{r}
+full_weight_lenght$full_a[full_weight_lenght$Family=="Pinguipedidae"]<-0.00759
+full_weight_lenght$full_b[full_weight_lenght$Family=="Pinguipedidae"]<-3.14
+```
+
+all the left species are one sp from familiy...
+
+```{r}
+full_weight_lenght$full_a[full_weight_lenght$Species=="Scolopsis ghanam"]<-0.01778 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Scolopsis ghanam"]<-2.97 
+  
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Aetobatus narinari"]<- NA
+full_weight_lenght$full_b[full_weight_lenght$Species=="Aetobatus narinari"]<- NA
+   
+full_weight_lenght$full_a[full_weight_lenght$Species=="Parapriacanthus ransonneti"]<-0.01622 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Parapriacanthus ransonneti"]<-2.99 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Synanceia verrucosa"]<- 0.01122 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Synanceia verrucosa"]<-3.04 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Atherinomorus lacunosus"]<-0.00741 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Atherinomorus lacunosus"]<-3.16 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Myrichthys maculosus"]<-0.00151
+full_weight_lenght$full_b[full_weight_lenght$Species=="Myrichthys maculosus"]<-2.90 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Pardachirus marmoratus"]<-0.01072 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Pardachirus marmoratus"]<-3.07 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Taeniura lymma"]<-NA
+full_weight_lenght$full_b[full_weight_lenght$Species=="Taeniura lymma"]<-NA
+  
+# i used Callionymus oxycephalus
+
+full_weight_lenght$full_a[full_weight_lenght$Species=="Callionymus sp."]<-0.00933 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Callionymus sp."]<-2.77 
+
+# i used Enneapterygius pusillus
+
+full_weight_lenght$full_a[full_weight_lenght$Family=="Tripterygiidae"]<-0.00550  
+full_weight_lenght$full_b[full_weight_lenght$Family=="Tripterygiidae"]<-3.08  
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Inimicus filamentosus"]<-0.01122 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Inimicus filamentosus"]<-3.09 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Tylosurus choram"]<-0.00126
+full_weight_lenght$full_b[full_weight_lenght$Species=="Tylosurus choram"]<-3.11 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Spratelloides gracilis"]<-0.00525 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Spratelloides gracilis"]<-3.10 
+    
+full_weight_lenght$full_a[full_weight_lenght$Species=="Torpedo panthera"]<-0.01549 
+full_weight_lenght$full_b[full_weight_lenght$Species=="Torpedo panthera"]<-2.94
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Antennarius commerson"]<-0.01995
+full_weight_lenght$full_b[full_weight_lenght$Species=="Antennarius commerson"]<-3.01 
+  
+full_weight_lenght$full_a[full_weight_lenght$Species=="Papilloculiceps longiceps"]<-0.00479
+full_weight_lenght$full_b[full_weight_lenght$Species=="Papilloculiceps longiceps"]<-3.06 
+
+full_weight_lenght$full_a[full_weight_lenght$Species=="Kyphosus vaigiensis"]<-0.01698
+full_weight_lenght$full_b[full_weight_lenght$Species=="Kyphosus vaigiensis"]<-3   
+  
+```
+
+select relevnt columns to add th the fish 
+
+
+```{r}
+full_weight_lenght<-full_weight_lenght %>% select(Species,full_a,full_b)
+
+colnames(full_weight_lenght)<-c("Species","a","b")
+
+str(full_weight_lenght)
+
+full_weight_lenght = as.data.frame(full_weight_lenght)
+```
+
+add to the full fish data
+
+```{r}
+fish_full_data<-left_join(fish_full_data,full_weight_lenght,by="Species")
+```
+
+
+add the month_year variable
+
+```{r include=FALSE}
+
+fish_full_data$year_month<-ifelse(month(fish_full_data$Date)>6,
+                                paste(fish_full_data$Year,"b",sep= " "),
+                                paste(fish_full_data$Year,"a",sep= " "))
+
+fish_full_data<-fish_full_data %>% relocate(year_month, .before = survey_id)
+
+
+```
+
+
+Update the coral data
+
+```{r}
+load("knoll_mdata.rdata")
+load("coral_cover.rdata")
+```
+
+coral data to join
+
+```{r}
+
+add_coral<- coral_cover %>% select(1:5,18:25,16,14,6,26:29)
+
+add_coral<- add_coral %>% 
+  rename(Stony_Coral = Stony.Coral, Soft_Coral=Soft.Coral) %>% 
+  mutate(coral_cover = Stony_Coral+Soft_Coral)
+
+add_coral<-add_coral %>% mutate(coral_att = paste(Site,Knoll,Year,sep = "_")) %>% select(-(1:3),-5)
+```
+
+
+For JUNE 2021 there is no coral data.
+ill assume the same cover as 2020 - need to check with Yoni
+
+some of the "mess" in the code is keeping some m-data of the kazta 16 and nr 18 knolls...
+
+```{r}
+
+coral_2020<- add_coral %>% filter(storm == "After")
+
+coral_2020$coral_att<-substr(coral_2020$coral_att,1,nchar(coral_2020$coral_att)-1)
+
+coral_2020$coral_att<-paste0(coral_2020$coral_att,"1")
+
+add_coral<-bind_rows(add_coral,coral_2020)
+
+add_coral$storm[311:312]<-"After"
+add_coral$coral_att[311:312]<-c("Katza_16_2020","NR_18_2020")
+
+
+t<-as.data.frame(rep(add_coral[311:312,]))
+
+
+t$coral_att<-c("Katza_16_2021","NR_18_2021")
+
+add_coral<-bind_rows(add_coral,t)
+
+
+```
+
+
+
+```{r}
+fish_full_data<-fish_full_data %>% select(-(17:25))
+
+fish_full_data <- fish_full_data %>% mutate(coral_att = paste(Site,Knoll,Year,sep = "_"))
+
+
+
+
+fish_full_data<-left_join(fish_full_data,add_coral)
+
+fish_full_data$Species_grouped<-NULL
+
+
+check<- fish_full_data %>% distinct(coral_att,.keep_all=T)
+
+fish_full_data<-fish_full_data %>% relocate(coral_cover,.after = "Soft_Coral")
+```
+
+insert correction to knolls number
+
+knoll 21 in Princess should change to 22 after the storm (2020)
+knoll 10 in the Princess should change to 23 after the storm (2020)
+
+Those knoll was documented under the same knoll but the knoll was destroy in the storm and we actually surveyed different knoll!
+
+
+```{r}
+
+
+
+fish_full_data$Knoll<-ifelse(fish_full_data$Site =="Princess" & fish_full_data$Year >2018 & fish_full_data$Knoll =="21",22,fish_full_data$Knoll)
+
+fish_full_data$Knoll<-ifelse(fish_full_data$Site =="Princess" & fish_full_data$Year >2018 & fish_full_data$Knoll =="10",23,fish_full_data$Knoll)
+
+
+
+```
+
+
+
+
+
+
+```{r}
+traits<-read.csv("raw data to use\\Final_traits.csv")
+
+traits$Name<-str_to_lower(traits$Name)
+traits$Name<-capitalize(traits$Name)
+
+traits<-traits %>% select(c(2:8,25))
+
+
+
+
+```
+
+validate name of traits data
+
+
+```{r}
+valid_name <-validate_names(traits$Name)
+
+traits$valid<-ifelse(traits$Name %in% valid_name,"valid","not valid")
+
+species_v<-traits %>% filter(traits$valid == "not valid")
+
+ 
+new_name<-species_v$Name %>% synonyms() %>% 
+ select(provided_name = synonym, valid_name = Species, Comment = Status) %>% 
+  filter(Comment == "synonym") %>% rename(Species = provided_name)
+
+traits<-left_join(traits,new_name,by=c("Name"="Species"))
+
+traits$Species<-ifelse(!is.na(traits$valid_name),
+                                traits$valid_name,
+                                traits$Species)
+
+traits<-traits[,1:9]
+
+setdiff(fish_full_data$Species_2015,traits$Name)
+```
+
+
+
+
+
+
+```{r}
+#save(fish_full_data,file = "fish_full_data.Rdata")
+#save(survey_list,file = "survey_list.Rdata")
+```
+
+
+```{r}
+load("fish_full_data.rdata")
+load("survey_list.Rdata")
+#write.csv(fish_full_data,"fish_full_data.csv")
+```
+
+# data curation 21/07/2022
+
+during the data analyses i found some mistakes to fix in the data...
+ill know change it here and re-save the fish_full_data
+
+
+1. change mistakes in the confidence level of survey "Princess_6_2020-10-13" 
+
+```{r}
+fish_full_data$Confidence<-ifelse(fish_full_data$survey_id == "Princess_6_2020-10-13" & fish_full_data$Species != "Gobiodon reticulatus",0,fish_full_data$Confidence)
+```
+
+2. change the status of 
+Pseudanthias squamipinnis,
+Chromis pembae,
+Neopomacentrus miryae, and
+Chromis weberi to Criptic 
+
+```{r}
+
+fish_full_data$Status <-
+  ifelse(
+    fish_full_data$Species %in% c(
+      "Pseudanthias squamipinnis",
+      "Neopomacentrus miryae",
+      "Chromis pembae",
+      "Chromis weberi"
+    ),
+    "C",
+    fish_full_data$Status
+  )
+
+```
+
+3. remove suspicius shacar M numbers of Gobiodon citrinus
+
+```{r}
+fish_full_data$Abundance<-ifelse(fish_full_data$survey_id == "Katza_20_2018-09-04" & fish_full_data$Species == "Gobiodon citrinus" & fish_full_data$Abundance >20,0,fish_full_data$Abundance)
+
+```
+
+4. change the values of: 
+Tylosurus choram (from 100 ind * 2cm to 2ind*100cm )
+Pomacentrus trichrourus (50 cm to 5 cm)
+
+
+```{r}
+
+fish_full_data$Length<-ifelse(fish_full_data$Species=="Tylosurus choram" &
+fish_full_data$Abundance == 100 &
+fish_full_data$survey_id =="Caves_14_2020-06-14",
+100,
+fish_full_data$Length)
+
+fish_full_data$Abundance<-ifelse(fish_full_data$Species=="Tylosurus choram" &
+fish_full_data$Abundance == 100 &
+fish_full_data$survey_id =="Caves_14_2020-06-14",
+2,
+fish_full_data$Abundance)
+
+
+fish_full_data$Length<-ifelse(fish_full_data$Species=="Pomacentrus trichrourus" &
+fish_full_data$Length == 50 &
+fish_full_data$survey_id =="Princess_5_2020-06-14",
+5,
+fish_full_data$Length)
+
+```
+
+
+### change the worng names (distrubution wise!)
+
+```{r}
+
+fish_full_data$Species[fish_full_data$Species == "Dascyllus aruanus"]<-"Dascyllus abudafur"
+fish_full_data$Species[fish_full_data$Species == "Macropharyngodon bipartitus"]<-"Macropharyngodon marisrubri"
+fish_full_data$Species[fish_full_data$Species == "Aetobatus narinari"]<-"Aetobatus ocellatus"
+fish_full_data$Species[fish_full_data$Species == "Amblyglyphidodon leucogaster"]<-"Amblyglyphidodon indicus"
+fish_full_data$Species[fish_full_data$Species == "Parapriacanthus ransonneti"]<-"Parapriacanthus guentheri"
+fish_full_data$Species[fish_full_data$Species == "Eviota sebreei"]<-"Eviota punyit"
+fish_full_data$Species[fish_full_data$Species == "Eviota prasites"]<-"Eviota zebrina"
+fish_full_data$Species[fish_full_data$Species == "Canthigaster coronata"]<-"Canthigaster cyanospilota"
+fish_full_data$Species[fish_full_data$Species == "Hemigymnus fasciatus"]<-"Hemigymnus sexfasciatus"
+
+```
+
+remove the species we don't have here and I couldn't find an equivalent species
+
+```{r}
+fish_full_data<- fish_full_data %>% 
+  filter(Species != "Cantherhines dumerilii",
+         Species != "Siphamia majimai")
+
+```
+
+
+
+```{r}
+#save(fish_full_data,file = "fish_full_data.Rdata")
+
+```
+
+

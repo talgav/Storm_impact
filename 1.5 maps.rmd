@@ -1,0 +1,254 @@
+---
+title: "1.5 map"
+author: "Tal Gavriely"
+date: "February 10, 2022"
+output: html_document
+---
+
+```{r}
+load("fish_full_data.rdata")
+load("survey_list.Rdata")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+#library(PKPDmisc)
+library(stringr)
+#library(biogeo)
+library(ggmap)
+library(geosphere)
+#library(TSP)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+```
+
+```{r}
+knoll<-fish_full_data %>% distinct(knoll_id,.keep_all=T) %>% drop_na(DD_X)
+
+sites<-knoll %>% distinct(Site,.keep_all=T)
+```
+
+```{r}
+gulf_map = get_stamenmap(bbox = c(left = 34.88, bottom = 29.48,right = 35.01, top = 29.56),zoom =12,
+                                     maptype ="toner-lite")
+
+
+gulf_map<-ggmap(gulf_map) 
+#see map
+gulf_map
+
+
+gulf_map +
+  geom_point(data = knoll, aes(x = DD_X, y = DD_Y,color = Site))+
+  theme(legend.position = "none")+
+  labs(x="Longitude", y = "Latitude")+
+  theme(text = element_text(size=25))
+
+#ggsave( filename = "sitemap.pdf",  bg = "white", width = 8, height = 8)
+```
+
+```{r}
+gulf_map_2 = get_stamenmap(bbox = c(left = 34.899263, bottom = 29.490301,right = 34.960280, top = 29.530632),zoom = 14,
+                                     maptype ="toner-lite")
+
+
+gulf_map_2<-ggmap(gulf_map_2) 
+
+#see map
+gulf_map_2
+
+
+gulf_map_2 +
+  geom_point(data = sites, aes(x = DD_X, y = DD_Y,group = Site))+
+  theme(legend.position = "none")+
+  labs(x="Longitude", y = "Latitude")+
+  theme(text = element_text(size=25))
+
+#ggsave( filename = "sitemap_test.png",  bg = "white", width = 8, height = 8)
+```
+
+```{r}
+
+gulf_map_3 = get_stamenmap(bbox = c(left = 34.899263, bottom = 29.490301,right = 34.960280, top = 29.530632),zoom = 14, scale = 100, color = "bw", maptype ="toner-lite")
+
+
+
+
+gulf_map_3<-ggmap(gulf_map_3) 
+
+#see map
+gulf_map_3+
+  geom_point(data = sites, aes(x = DD_X, y = DD_Y,group = Site),size=3)+
+  theme(legend.position = "none")+
+  labs(x="Longitude", y = "Latitude")+
+  theme(text = element_text(size=25))
+
+#ggsave( filename = "sitemap.pdf",  bg = "white", width = 8, height = 8)
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+bbox = c(left = 34.899263, bottom = 29.490301,right = 34.960280, top = 29.530632)
+
+get_stamenmap(bbox,zoom = 14, maptype = "terrain")            %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "terrain-background") %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "terrain-labels")     %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "terrain-lines")      %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner")              %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-2010")         %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-2011")         %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-background")   %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-hybrid")       %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-labels")       %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-lines")        %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "toner-lite")         %>% ggmap()
+get_stamenmap(bbox,zoom = 14, maptype = "watercolor")         %>% ggmap()
+```
+
+```{r}
+worldmap <- ne_countries(scale = 'medium', type = 'map_units',
+                         returnclass = 'sf')
+
+c(left = 34.899263, bottom = 29.490301,right = 34.960280, top = 29.530632)
+
+europe_cropped <- st_crop(worldmap, xmin =  34.899263, xmax = 34.960280,
+                                    ymin = 29.490301, ymax = 29.530632)
+israel <- worldmap[worldmap$name == 'Israel',]
+
+ggplot() + geom_sf(data = israel) + theme_bw()
+
+ 
+
+zoom_to <- c(34.229950,25.189529)  # Berlin
+zoom_level <-5
+lon_span <- 360 / 2^zoom_level
+lat_span <- 180 / 2^zoom_level
+lon_bounds <- c(zoom_to[1] - lon_span / 2, zoom_to[1] + lon_span / 2)
+lat_bounds <- c(zoom_to[2] - lat_span / 2, zoom_to[2] + lat_span / 2)
+#geom_sf(data = st_sfc(st_point(zoom_to), crs = 4326)) 
+
+  ggplot() + geom_sf(data = worldmap) +
+      coord_sf(xlim = lon_bounds, ylim = lat_bounds,expand = T) + theme_classic()+
+    annotation_scale(location = "bl", width_hint = 0.5) +
+    annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in"))
+
+ggsave( filename = "regionmap.pdf",  bg = "white", width = 8, height = 8)
+```
+
+```{r}
+
+library(rworldmap)
+library(rworldxtra)
+data(countriesHigh)
+ 
+
+world <- fortify(countriesHigh)
+
+zoom_to <- c(34.957864,29.507045)  # Gulf of Aquaba
+zoom_level <-10
+lon_span <- 360 / 2^zoom_level
+lat_span <- 180 / 2^zoom_level
+lon_bounds <- c(zoom_to[1] - lon_span / 2, zoom_to[1] + lon_span / 2)
+lat_bounds <- c(zoom_to[2] - lat_span / 2, zoom_to[2] + lat_span / 2)
+
+ggplot() +
+  geom_polygon(data = world,
+               aes(x=long, y=lat, group=group),
+               color = "lightgrey", fill = "blue")+
+      coord_sf(xlim = lon_bounds, ylim = lat_bounds,expand = T) + theme_classic()
+
+
+map <- ggplot() +
+  geom_polygon(data = world,
+               aes(x=long, y=lat, group=group),
+               color = "lightgrey", fill = "darkgrey")
+ 
+xxlim <- c(-7,12)   ## selected range North Sea
+yylim <- c(48,62)
+ 
+map +
+  coord_cartesian(xlim = xxlim, ylim = yylim)
+
+
+map +
+  coord_map("stereographic", xlim = xxlim, ylim = yylim, orientation=c(55, 10, 0)) +
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks = element_blank())
+```
+
+```{r}
+install.packages(c("cowplot", "googleway",  "ggrepel", 
+"ggspatial", "libwgeom"))
+
+library(ggspatial)
+library(googleway)
+library(libwgeom)
+
+remotes::install_github("ropensci/rnaturalearthhires")
+
+library(rnaturalearthhires)
+
+world <- ne_countries(scale = 10 ,returnclass = "sf")
+
+
+
+zoom_to <- c(34.957864,29.507045)  # Berlin
+zoom_level <-10
+lon_span <- 360 / 2^zoom_level
+lat_span <- 180 / 2^zoom_level
+lon_bounds <- c(zoom_to[1] - lon_span / 2, zoom_to[1] + lon_span / 2)
+lat_bounds <- c(zoom_to[2] - lat_span / 2, zoom_to[2] + lat_span / 2)
+#geom_sf(data = st_sfc(st_point(zoom_to), crs = 4326)) 
+
+  ggplot() + geom_sf(data = world) +
+      coord_sf(xlim = lon_bounds, ylim = lat_bounds,expand = T) + theme_classic()+
+    geom_point(data = sites, aes(x = DD_X, y = DD_Y,color = Site))
+
+
+
+
+```
+
+```{r}
+
+library(ggOceanMapsData)
+library(ggOceanMaps)
+
+basemap(limits = c(0, 46, 70, 81), bathymetry = TRUE, bathy.style = "poly_greys")
+```
+
+```{r}
+ggplot(data = world) +
+    geom_sf() +
+    annotation_scale(location = "bl", width_hint = 0.5) +
+    annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in"),
+        style = north_arrow_fancy_orienteering) +
+    coord_sf(xlim = c(-102.15, -74.12), ylim = c(7.65, 33.97))
+
+world_points<- st_centroid(world)
+world_points <- cbind(world, st_coordinates(st_centroid(world$geometry)))
+
+
+ggplot(data = worldmap) + geom_sf(fill= "antiquewhite") + geom_text(data= world_points,aes(x=X, y=Y, label=name), color = 'darkblue', fontface = 'bold', check_overlap = FALSE) + annotate(geom = 'text', x = -90, y = 26, label = 'Gulf of Mexico', fontface = 'italic', color = 'grey22', size = 6) + annotation_scale(location = 'bl', width_hint = 0.5) + annotation_north_arrow(location = 'bl', which_north = 'true', pad_x = unit(0.75, 'in'), pad_y = unit(0.5, 'in'), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-102.15, -74.12), ylim = c(7.65, 33.97), expand = FALSE) + xlab('Longitude') + ylab('Latitude') + ggtitle('Map of the Gulf of Mexico and the Caribbean Sea') + theme(panel.grid.major = element_line(color = gray(.5), linetype = 'dashed', size = 0.5), panel.background = element_rect(fill = 'aliceblue'))
+```

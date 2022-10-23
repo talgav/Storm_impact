@@ -1,0 +1,376 @@
+---
+title: "2.5 fish species area"
+author: "TG"
+date: "23 12 2021"
+output: html_document
+---
+
+ 
+
+```{r}
+load("fish_full_data.rdata")
+select <- dplyr::select
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+
+fish_k<-c("#669bbc","#336683","#1a4b66","#003049","#ed3140","#c1121f","#710912")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+```
+
+
+### general steps:
+
+1) filter confidence = 1
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+sp_area<-fish_full_data
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+sp_area<- sp_area %>% filter(Confidence < 1)
+
+```
+
+
+2) remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+sp_area<-sp_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+```
+
+3) keep one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(sp_area$survey_id)) {
+  
+  data <- sp_area %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+
+```{r}
+sp_list<-fish_full_data %>% distinct(Species,.keep_all = T) %>% select(Species,Species_2015,Family,Status) %>% arrange(Family,Species)
+
+```
+
+
+the connection between resident fish and surface area
+
+
+```{r}
+only_cryptic <- one_observer %>% filter(Status != "T")
+
+```
+
+
+3) set the number of species per knoll
+
+
+```{r}
+
+species_knoll<- only_cryptic %>% group_by(survey_id) %>% mutate(Species_number = n_distinct(Species_2015)) %>% select(-Species,-Species_2015,-Family,-Abundance,-Length,-Confidence,-Status,-a,-b) %>%  ungroup() %>% distinct(.keep_all = T)
+
+```
+
+* ill leave 2007 where only kazza was sampled out
+
+```{r}
+species_knoll<-species_knoll %>% filter(Year != 2017)
+
+
+```
+
+add month 
+
+```{r}
+species_knoll$month<-month(species_knoll$Date)
+species_knoll$month<-as.factor(species_knoll$month)
+
+species_knoll$storm<-as.factor(species_knoll$storm)
+species_knoll$Season <- ifelse(species_knoll$month == 6,"Spring","Fall")
+
+species_knoll$Year<-as.factor(species_knoll$Year)
+species_knoll$Site<-as.factor(species_knoll$Site)
+```
+
+
+
+remove outlier knolls
+
+```{r}
+
+no_nr_outliar<-species_knoll %>% filter(knoll_id != "Katza_19",knoll_id != "NR_17")
+
+```
+
+best model from previos scrips (2.4 species area)
+
+
+```{r}
+
+model<-lmer(formula = log(Species_number) ~ log(Surface_Area)*Site +(1|year_month)+Max_depth ,data = no_nr_outliar)
+summary(model)
+r.squaredGLMM(model)
+
+model_2<-lm(formula = log(Species_number) ~ log(Surface_Area)*Site +year_month + Max_depth ,data = no_nr_outliar)
+summary(model_2)
+
+
+model_3<-lm(formula = log(Species_number) ~ log(Surface_Area)*year_month + Site + Max_depth ,data = no_nr_outliar)
+summary(model_3)
+r.squaredGLMM(model_3)
+
+model_5<-lm(formula = log(Species_number) ~ log(Surface_Area)*year_month ,data = no_nr_outliar)
+summary(model_5)
+r.squaredGLMM(model_5)
+
+model_5_gg=ggeffects::ggpredict(model_5,terms = c('Surface_Area[1:66 by=1]','year_month'))
+
+ggplot()+
+  theme_classic()+
+  geom_line(data = model_5_gg,aes(x= log(x),y = log(predicted),color= group),size=1.5)+ 
+  geom_point(data = species_knoll,aes(log(Surface_Area),log(Species_number),color = year_month),alpha = 0.5)+geom_ribbon(data = model_5_gg,aes(x=log(x),ymin=log(conf.low),ymax=log(conf.high),fill=group),alpha=0.1)+
+  ylab("log(richness)")+xlim(1,4)+ylim(-1,4)+
+  xlab(bquote('log(Knoll surface area '~(m^2)))+
+    theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))+
+        scale_fill_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+#ggsave("residence_fish_area.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts")
+
+
+ggplot()+
+  theme_classic()+
+  geom_line(data = model_5_gg,aes(x= x,y = predicted,color= group),size=1.5)+ 
+  geom_point(data = species_knoll,aes(Surface_Area,Species_number,color = year_month),alpha = 0.5)+geom_ribbon(data = model_5_gg,aes(x=x,ymin=conf.low,ymax=conf.high,fill=group),alpha=0.1)+
+  ylab("Richness")+xlim(1,40)+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+    theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))+
+        scale_fill_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+sjPlot::plot_model(model_5,type="eff",terms = c('Surface_Area','year_month'),show.data = T)+theme_classic()
+
+
+model_4<-lm(formula = log(Species_number) ~ log(Surface_Area)+
+              year_month + Site + Max_depth ,data = no_nr_outliar)
+summary(model_4)
+r.squaredGLMM(model_4)
+
+model.sel(model_2,model_3,model_4)
+
+
+
+```
+
+```{r}
+
+surface_area = rep(seq(from = 1,to = 60,by = 1),24) # Length = 60
+site = rep(unique(species_knoll$Site),each = 360) # Length = 4
+year = rep(rep(unique(species_knoll$year_month),each = 60),4) # Length = 6
+
+predict_no_out<-data.frame(Site = site,
+                       year_month = year,
+                       Surface_Area= surface_area,
+                       Max_depth = rep(4.6))
+
+
+predict_no_out$Surface_Area_log<-log(predict_no_out$Surface_Area)
+
+
+predict_species_no_out<-predict(model_3,predict_no_out,type="response")
+
+predict_no_out<-cbind(predict_no_out,predict_species_no_out)
+
+predict_no_out$site_year<-paste(predict_no_out$Site,predict_no_out$year_month,sep="_")
+
+predict_no_out$species_number<-exp(predict_no_out$predict_species_no_out)
+
+
+predict_no_out$year_month<- as.factor(predict_no_out$year_month)
+
+l_type<-c("solid","solid","solid","twodash","solid","solid")
+
+ggplot(data = predict_no_out,aes(x= Surface_Area,y = species_number,color= site))+
+  theme_classic()+geom_smooth(alpha = 0.2)+
+  geom_point(data = no_nr_outliar,aes(Surface_Area,Species_number,color = Site),alpha = 0.3)+
+  ylab("Richness")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 02))+
+  scale_color_manual(name = "Site",values = color)
+
+#ggsave("residence_fish_sp_area.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+
+ggplot(data = predict_no_out,aes(x= Surface_Area,y = species_number,color= year_month))+
+  theme_classic()+geom_smooth(alpha = 0.2)+   geom_point(data = species_knoll,aes(Surface_Area,Species_number,color = year_month),alpha = 0.3)+
+  ylab("Richness")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+
+ggplot(data = predict_no_out,aes(x= Surface_Area_log,y = predict_species_no_out,color= year_month))+
+  theme_classic()+geom_smooth(alpha = 0.2)+ 
+  geom_point(data = species_knoll,aes(log(Surface_Area),log(Species_number),color = year_month),alpha = 0.5)+
+  ylab("log(richness)")+
+  xlab(bquote('log(Knoll surface area '~(m^2)))+
+  xlim(1,4)+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+#ggsave("residence_fish_sp_area_year_interaction.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts")
+```
+
+now do one for the diffreny years
+
+```{r}
+surface_area = rep(seq(from = 1,to = 60,by = 1),24) # Length = 60
+site = rep(unique(species_knoll$Site),each = 360) # Length = 4
+year = rep(rep(unique(no_nr_outliar$year_month),each = 60),4) # Length = 6
+
+
+
+
+mean(species_knoll$Max_depth)
+median(species_knoll$Max_depth)
+  
+predict_cryptic<-data.frame(Site = site,
+                       year_month = year,
+                       Surface_Area= surface_area,
+                       Max_depth = rep(4.6))
+
+
+
+
+predict_cryptic$Surface_Area_log<-log(predict_cryptic$Surface_Area)
+
+predict_species_cryptic<-predict(sp_ar_model,predict_cryptic,type="response")
+
+cyptic_predicted<-cbind(predict_cryptic,predict_species_cryptic)
+
+cyptic_predicted$site_year<-paste(cyptic_predicted$Site,cyptic_predicted$year_month,sep="_")
+
+cyptic_predicted$species_number<-exp(cyptic_predicted$predict_species_cryptic)
+
+
+cyptic_predicted$year_month<- as.factor(cyptic_predicted$year_month)
+
+
+ggplot(data = cyptic_predicted,aes(x= Surface_Area,y = species_number,color= site))+
+  theme_classic()+geom_smooth()+geom_point()
+
+
+
+
+ggplot(data = cyptic_predicted,aes(x= Surface_Area,y = species_number,color= year_month))+
+  theme_classic()+geom_smooth()+geom_point(data = species_knoll,aes(Surface_Area,Species_number,color = year_month),alpha = 0.3)+
+  ylab("Species number")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        strip.text.x = element_text(size = 16))+
+  scale_color_manual(values=fish_all)
+```
+
+
+

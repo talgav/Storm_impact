@@ -1,0 +1,554 @@
+---
+title: "14.1 knoll based analyses"
+author: "TG"
+date: "17 12 2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(wesanderson)
+library(RColorBrewer)
+library(plotrix)
+```
+
+```{r}
+load("knoll_mdata.rdata")
+load("coral_cover.rdata")
+load("coral_comm.rdata")
+load("fish_full_data.rdata")
+
+```
+
+# Corals
+
+
+```{r}
+yearly_cover<- coral_cover %>% select(Site,Year,storm,Surface_Area,Knoll,Stony.Coral,Hydrozoa,Soft.Coral,Algae,Zoantharia) %>% mutate(all_stone = Stony.Coral+Hydrozoa) %>% mutate(all_soft = Soft.Coral+Zoantharia)
+
+
+k_new<-c("#669bbc","#336683","#1a4b66","#003049","#c1121f")
+all_new<-c("#669bbc","#336683","#003049","#c1121f")
+```
+
+
+## coral cover %
+
+stony coral and hydrozoa
+
+```{r}
+
+yearly_cover_no_k<-yearly_cover %>% filter(Site != "Katza")
+
+for (i in unique(yearly_cover_no_k$Site)) {
+ 
+test<-yearly_cover_no_k %>% filter(Site == i) %>% drop_na(Stony.Coral)
+
+gp1 <- wes_palettes$GrandBudapest2 
+gp2 <- wes_palettes$GrandBudapest1
+
+plot_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per knoll\\stone"
+
+comb_bud<-c(gp1[c(2,3,4)],gp2[4])
+
+
+p2<-test %>%
+  mutate(Knoll = as.factor(Knoll)) %>% 
+  mutate(Knoll = fct_reorder(Knoll,all_stone, .fun='max' )) %>%
+  ggplot( aes(x=Knoll, y=all_stone, color = as.factor(Year))) +   geom_point(size=2) +
+  ggtitle(unique(test$Site))+
+  xlab("Knoll id") +
+  ylab("Stony coral cover (%)")+
+  scale_y_continuous(limits = c(0,85),breaks=seq(0,85,by=5))+
+  theme_bw()+
+  theme(title = element_text(size = 20),
+    axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))   +scale_color_manual(values=all_new)+
+   labs(color = "Year")
+
+p2_name<-paste("stoney_cover_v2_",unique(test$Site),".png")
+
+ggsave(p2_name, width = 14, height = 5, dpi = 300,path = plot_path)
+  
+
+p3<-test %>%
+  mutate(Knoll = as.factor(Knoll)) %>% 
+  mutate(Knoll = fct_reorder(Knoll,Soft.Coral, .fun='max' )) %>%
+  ggplot( aes(x=Knoll, y=Soft.Coral, color = as.factor(Year))) +   geom_point(size=2) +
+  ggtitle(unique(test$Site))+
+  xlab("Knoll id") +
+  ylab("Soft coral cover (%)")+
+  scale_y_continuous(breaks=seq(0,50,by=1))+
+  theme_bw()+
+  theme(title = element_text(size = 20),
+    axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+          labs(color = "Year")+
+  scale_color_manual(values=comb_bud)
+ 
+
+p3_name<-paste("soft_cover_",unique(test$Site),".png")
+
+p3_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per knoll\\soft"
+
+ggsave(p3_name, width = 14, height = 4, dpi = 300,path = p3_path)
+
+}
+
+
+```
+
+bar plot of soft and stone corals
+
+
+```{r}
+
+
+
+cover_bar<-yearly_cover %>% group_by(Site,Year) %>% summarise("mean_stone"=mean(all_stone,na.rm =T),
+                                                   "mean_soft"=mean(all_soft,na.rm =T),
+                                                   "n"=n(),
+                                                   "SE_stone"=std.error(all_stone),
+                                                   "SE_soft"=std.error(all_soft))
+
+
+cover_bar<-gather(cover_bar,"coral_type","cover",3:4)
+
+
+cover_bar$Year<-as.factor(cover_bar$Year)
+
+cover_bar<-cover_bar %>% group_by(Site,Year) %>% 
+  mutate("se_positon"= case_when(coral_type =="mean_stone" ~ cover + SE_stone,
+                                 coral_type=="mean_soft" ~ cumsum(cover)+SE_soft))
+
+cover_bar<-cover_bar %>% group_by(Site,Year) %>% 
+  mutate("se_positon_min"= case_when(coral_type =="mean_stone" ~ cover ,
+                                 coral_type=="mean_soft" ~ cumsum(cover)))
+
+
+ggplot(data = cover_bar,aes(x=Year,y = cover, fill = coral_type))+
+    geom_bar(position="stack", stat="identity",color ="black")+
+  geom_errorbar(aes(ymax = se_positon,ymin = se_positon_min),width=.1)+
+    facet_wrap(Site~.)+
+    theme_bw()+ylab("Mean cover(%)")+ 
+  geom_text(data = cover_bar,
+        aes(label = n, y = 5),size=6)+
+  scale_fill_manual(values = c("#fed0bb","#d77a7d"),name = "Coral type",labels= c("Soft coral","Stony coral"))+
+    theme(title = element_text(size = 20),
+    axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+    strip.text = element_text(size=22),
+    strip.background =element_rect(fill="#faf5ef"))
+  
+#ggsave("coral_cover_stacked_bar.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021") 
+ 
+```
+
+
+
+
+only kazta (separate for the different color pallet)
+
+```{r}
+
+only_kazta<-yearly_cover %>% filter(Site == "Katza")
+test<-only_kazta %>%  drop_na(Stony.Coral)
+
+gp1 <- wes_palettes$GrandBudapest1 
+gp2 <- wes_palettes$GrandBudapest2
+k_pallert<-c(gp1[c(1,2)],gp2[4],gp1[c(4,3)])
+
+
+plot_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per knoll\\stone"
+
+
+p2<-test %>%
+  mutate(Knoll = as.factor(Knoll)) %>% 
+  mutate(Knoll = fct_reorder(Knoll,all_stone, .fun='max' )) %>%
+  ggplot( aes(x=Knoll, y=all_stone, color = as.factor(Year))) +   geom_point(size=2) +
+  ggtitle(unique(test$Site))+
+  xlab("Knoll id") +
+  ylab("Stony coral cover (%)")+
+  scale_y_continuous(limits = c(0,85),breaks=seq(0,85,by=5))+
+  theme_bw()+
+  theme(title = element_text(size = 20),
+        axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))   +scale_color_manual(values=k_new)+
+   labs(color = "Year")
+
+p2_name<-paste("stoney_cover_v2_",unique(test$Site),".png")
+
+ggsave(p2_name, width = 14, height =5, dpi = 300,path = plot_path)
+  
+
+#p3<-test %>%
+#  mutate(Knoll = as.factor(Knoll)) %>% 
+ # mutate(Knoll = fct_reorder(Knoll,Soft.Coral, .fun='max' )) %>%
+  #ggplot( aes(x=Knoll, y=Soft.Coral, color = as.factor(Year))) +   geom_point(size=2) +
+  #ggtitle(unique(test$Site))+
+  #xlab("Knoll id") +
+  #ylab("Soft coral cover (%)")+
+  #scale_y_continuous(breaks=seq(0,50,by=1))+
+  #theme_bw()+
+  #theme(axis.text.x = element_text(size=20),
+  #      axis.text.y = element_text(size =16),
+  #      axis.title.x = element_text(size=22),
+  #      axis.title.y = element_text(size=22),
+  #      legend.title = element_text(size=22),
+  #      legend.text = element_text(size=20))+
+  #labs(color = "Year")+
+  #scale_color_manual(values=comb_bud)
+ 
+
+#p3_name<-paste("soft_cover_",unique(test$Site),".png")
+
+#p3_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per knoll\\soft"
+
+#ggsave(p3_name, width = 14, height =5, dpi = 300,path = p3_path)
+
+
+```
+
+# Coral species richness
+
+only stoney corals and hydorozoa
+
+1. only katza
+
+#669bbc 2015
+#336683 2016
+#1a4b66 2017
+#003049 2018
+
+red
+
+#c1121f 2020
+
+```{r}
+stony_richness<-coral_comm %>%
+filter(Category =="Stony Coral"|Category =="Hydrozoa") %>% 
+  group_by(site,knoll,year,storm) %>% 
+  summarise("species" = n_distinct(species))
+
+gp1 <- wes_palettes$GrandBudapest1 
+gp2 <- wes_palettes$GrandBudapest2
+k_pallert<-c(gp1[c(1,2)],gp2[4],gp1[c(4,3)])
+k_new<-c("#669bbc","#336683","#1a4b66","#003049","#c1121f")
+
+r1<-stony_richness %>% filter(site =="Katza") %>% 
+  mutate(knoll = as.factor(knoll)) %>% 
+  mutate(knoll = fct_reorder(knoll,species,.fun='max')) %>%
+  ggplot( aes(x=fct_reorder(knoll,species,.fun='max'), y=species, color = as.factor(year))) + geom_point(size=2,position=position_jitter(width=0, height=0.4)) +
+  scale_y_continuous(limits = c(0,30),breaks=seq(0,30,by=5))+
+  ggtitle("Katza")+
+  xlab("Knoll id") +
+  ylab("Stony coral species richness")+
+ theme_bw()+
+  theme(title = element_text(size = 20),
+        axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+   scale_color_manual(values=k_new)+
+   labs(color = "Year")
+r1  
+
+r1_name<-"stoney_richness_v1_Katza.png"
+r1_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\coral richness per knoll"
+ggsave(r1_name, width = 14, height =5, dpi = 300,path = r1_path)
+
+
+```
+
+
+2. loop the other sites
+
+```{r}
+
+loop_data<-stony_richness %>% filter(site !="Katza")
+
+for (i in unique(loop_data$site)) {
+  
+gp1 <- wes_palettes$GrandBudapest1 
+
+
+data<-loop_data %>% filter(site == i) 
+
+r1<-data %>%
+  mutate(knoll = as.factor(knoll)) %>% 
+  ggplot( aes(x=fct_reorder(knoll,species,.fun='max'), y=species, color = as.factor(year))) + geom_point(size=2,position=position_jitter(width=0, height=0.4)) +
+  ggtitle(unique(data$site))+
+  scale_y_continuous(limits = c(0,30),breaks=seq(0,30,by=5))+
+  xlab("Knoll id") +
+  ylab("Stony coral species richness")+
+ theme_bw()+
+  theme(title = element_text(size = 20),
+        axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values=all_new)+
+   labs(color = "Year")
+  
+r1_name<-paste("stoney_richness_v1_",unique(data$site),".png")
+r1_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\coral richness per knoll"
+ggsave(r1_name, width = 14, height =5, dpi = 300,path = r1_path)
+
+  
+}
+
+
+```
+
+
+
+## fish richness per knoll
+
+### general steps:
+
+1) filter confidence = 1
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+2) remove irregular sites
+
+3) keep one observer
+
+4) keep only residence fish
+
+5) count the species number
+
+6) add sample season
+
+
+```{r}
+#1
+
+sp_area<-fish_full_data
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+sp_area<- sp_area %>% filter(Confidence < 1)
+
+#2
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+sp_area<-sp_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+#3
+
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(sp_area$survey_id)) {
+  
+  data <- sp_area %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+# 4
+
+only_cryptic <- one_observer %>% filter(Status != "T")
+
+# 5
+
+fish_richness<- only_cryptic %>% group_by(Site,Knoll,Date,year_month,storm) %>% summarise("species"= n_distinct(Species_2015))
+
+fish_richness$sample_name<-ifelse(lubridate::month(fish_richness$Date)==6,paste("Spring",lubridate::year(fish_richness$Date),sep=" "),paste("Fall",lubridate::year(fish_richness$Date),sep=" "))
+
+fish_richness$sample_name<-as.factor(fish_richness$sample_name)
+
+fish_richness$sample_name<-ordered(fish_richness$sample_name, levels = c("Fall 2015", "Fall 2016", "Fall 2017", "Fall 2018","Spring 2020", "Fall 2020" ,"Spring 2021"))
+
+
+
+
+
+
+```
+
+
+plot Katza
+
+```{r}
+fish_katza<-fish_richness %>% filter(Site=="Katza")
+
+gp1 <- wes_palettes$GrandBudapest1 
+gp2 <- wes_palettes$GrandBudapest2
+
+reg_pallet<-c("")
+k_pallert<-c(gp1[c(1,2)],gp2[4],gp1[c(4,3)])
+
+fish_k<-c("#669bbc","#336683","#1a4b66","#003049","#ed3140","#c1121f","#710912")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+
+
+f1<-fish_katza %>% 
+  mutate(Knoll = as.factor(Knoll)) %>% 
+  mutate(Knoll = fct_reorder(Knoll,species,.fun='max')) %>%
+  ggplot( aes(x=fct_reorder(Knoll,species,.fun='max'), y=species, color = sample_name)) + geom_point(size=2,position=position_jitter(width=0, height=0.4)) +
+  ggtitle("Katza")+
+  scale_y_continuous(limits = c(0, 25),breaks = seq(0, 25, 5))+
+  xlab("Knoll id") +
+  ylab("Resident fish richness")+
+ theme_bw()+
+  theme(title = element_text(size = 20),
+    axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values=fish_k)+
+   labs(color = "Year")
+f1
+
+
+f1_name<-"fish_richness_Katza.png"
+f1_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\fish richness per knoll"
+ggsave(f1_name, width = 14, height =5, dpi = 300,path = f1_path)
+
+
+
+
+
+```
+
+
+
+for the rest of the sites
+
+```{r}
+
+fish_no_k<-fish_richness %>% filter(Site != "Katza")
+
+for (i in unique(fish_no_k$Site)) {
+  
+  data<-fish_no_k %>% filter(Site == i)
+
+  f1<-data %>% 
+  mutate(Knoll = as.factor(Knoll)) %>% 
+  mutate(Knoll = fct_reorder(Knoll,species,.fun='max')) %>%
+  ggplot( aes(x=fct_reorder(Knoll,species,.fun='max'), y=species, color = sample_name)) + geom_point(size=2,position=position_jitter(width=0, height=0.4)) +
+  ggtitle(unique(data$Site))+
+  scale_y_continuous(limits = c(0, 25),breaks = seq(0, 25, 5))+
+  xlab("Knoll id") +
+  ylab("Resident fish richness")+
+ theme_bw()+
+  theme(title = element_text(size = 20),
+       axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values=fish_all)+
+   labs(color = "Year")
+f1
+
+
+f1_name<-paste("fish_richness_",unique(data$Site),".png")
+f1_path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\fish richness per knoll"
+ggsave(f1_name, width = 14, height =5, dpi = 300,path = f1_path)
+    
+}
+
+
+
+```
+
+
+# stone coral cover by year
+
+
+```{r}
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+mean_cover<-yearly_cover %>% group_by(Site,Year) %>% summarise("mean"=mean(all_stone,na.rm=T),"se" = std.error(all_stone),n=n(),                                                               "ci_upper"=mean+((1.96*se)/sqrt(n)),
+"ci_lower"=mean-((1.96*se)/sqrt(n)),
+"ci" = (1.96*se)/sqrt(n))
+
+
+ggplot(data = mean_cover,aes(x=Year,y=mean,color = Site))+geom_point(size=3,position = position_dodge(0.3))+
+  geom_errorbar(aes(ymin=ci_lower, ymax=ci_upper), width=.1,position = position_dodge(0.3))+
+  scale_color_manual(values = color)+theme_bw()+geom_line(size=1,position = position_dodge(0.3))+
+  xlab("Year") +
+  ylab("Mean stony coral cover (%)")+
+ theme_bw()+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))
+
+ggsave("stone_mean_cover_w_ci.png", width = 14, height =5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+
+```
+
+
+```{r}
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+
+mean_soft_cover<-yearly_cover %>% group_by(Site,Year) %>% summarise("mean"=mean(Soft.Coral,na.rm=T),"se" = std.error(Soft.Coral),n=n(),                                                               "ci_upper"=mean+((1.96*se)/sqrt(n)),
+"ci_lower"=mean-((1.96*se)/sqrt(n)),
+"ci" = (1.96*se)/sqrt(n))
+
+
+ggplot(data = mean_soft_cover,aes(x=Year,y=mean,color = Site))+geom_point(size=3,position = position_dodge(0.3))+
+  geom_errorbar(aes(ymin=ci_lower, ymax=ci_upper,color = Site), width=.1,position = position_dodge(0.3))+
+ theme_bw()+geom_line(size=1,position = position_dodge(0.3))+
+  xlab("Year") +
+  ylab("Mean soft coral cover (%)")+
+ theme_bw()+scale_y_continuous(limits = c(0,14),breaks = seq(0,14,by=2))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = color)
+
+
+ggsave("soft_mean_cover_w_ci.png", width = 14, height =5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```

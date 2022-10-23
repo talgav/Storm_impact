@@ -1,0 +1,863 @@
+---
+title: "9.3 fuzzyQ species 2015"
+author: "TG"
+date: "17 5 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(mobr)
+library(FuzzyQ)
+library(forcats)
+
+```
+
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+filter the north beach
+```{r}
+one_observer<-one_observer %>% filter(Site !="North beach")
+```
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+convert to wide data
+
+```{r}
+wide_data<- one_observer %>%
+  group_by(Site,year_month,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data<-spread(wide_data,Species_2015,aboundance,fill = 0)
+
+
+
+```
+
+
+# FuzzyQ
+
+
+```{r}
+matric_fuzzy<-wide_data[,3:ncol(wide_data)]
+
+fuzzy <- fuzzyq(matric_fuzzy)
+
+AOplot(fuzzy)
+AOplot(fuzzy,log.y = T)
+AOplot(fuzzy,log.y = T,log.x = T)
+
+fuzzy_boot <- fuzzyqBoot(matric_fuzzy)
+global_fuzz_boot<-fuzzyqBoot(matric_fuzzy,level = "global")
+fuzzyci <- fuzzyqCI(fuzzy_boot)
+sort<-sortClus(fuzzyci,fuzzy)
+
+fuzzy_sp_index <- fuzzy$spp
+col.RC <- c("brown2", "turquoise3") # two colors to plot rare and common
+
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+spp<-fuzzy$spp
+
+
+
+plot(spp[, 3], cex.axis = 0.8, xaxt= 'n', ylab = "Commoness index",
+ylim = c(0, max(sort)), xlab = "Species", col = col.RC[spp[, 1] + 1],
+pch = 16, cex = 0.8, las = 1)
+ebar.int <- seq_len(nrow(spp))
+arrows(ebar.int, sort["Lower", ], ebar.int, sort["Upper", ],
+length= 0, col = col.RC[spp[, 1] + 1])
+axis(1, at = ebar.int, labels = rownames(spp), las = 2, cex.axis = 0.6)
+
+
+
+fuzzy_sp_index<-fuzzy[["spp"]]
+fuzzy_sp_index<-fuzzy_sp_index %>% as_data_frame(fuzzy_sp_index, rownames = "Species")
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+fuzzy_sp_index$cluster<-as.factor(fuzzy_sp_index
+                                  $cluster)
+
+fuzzy_sp_index$cluster<-as.factor(fuzzy_sp_index
+                                  $cluster)
+
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+
+fuzzy_sp_index %>% 
+  mutate(ordering =  as.numeric(cluster) + sil_width,
+         Species = fct_reorder(Species, ordering, .desc = T)) %>% 
+  ggplot(aes(Species, sil_width, fill = cluster)) + geom_col()+
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))
+
+ggplot(fuzzy_sp_index,aes(cluster,sil_width))+geom_boxplot(aes(fill=cluster))
+ggplot(fuzzy_sp_index,aes(cluster,Common.I))+geom_boxplot(aes(fill=cluster))
+
+boot_spp<- as.data.frame(fuzzy_boot[["fq.rep"]])
+
+boot_glob<-as.data.frame(global_fuzz_boot[["fq.rep"]])
+boot_glob_long<-boot_glob %>% gather("var","value",1:6)
+
+boot_glob_long %>% filter(var %in% c("silw.rar","silw.all","silw.com")) %>% ggplot(aes(var,value,fill=var))+geom_boxplot()
+
+boot_glob_long %>% filter(var %in% c("commI.rar","commI.com")) %>% ggplot(aes(var,value,fill=var))+geom_boxplot()+theme_classic()
+
+
+boot_glob_long %>% filter(var %in% c("N.Dunn")) %>% ggplot(aes(var,value))+geom_boxplot(fill="aquamarine3")+theme_classic()
+```
+
+
+make a list 
+
+
+```{r}
+fuzzy_sp_list<-fuzzy_sp_index %>% select(Species,cluster,Common.I) %>% rename(Species_2015 = Species, part_of_common = Common.I ) 
+fuzzy_sp_list<-fuzzy_sp_list%>% mutate( part_of_rare = 1 - part_of_common)
+
+
+```
+
+clean the env
+
+```{r}
+rm(list=setdiff(ls(), c("fish_full_data","fuzzy_sp_list","fuzzy_sp_index","one_observer")))
+```
+
+connect the cluster to the data-frame
+
+```{r}
+
+one_observer<-left_join(one_observer,fuzzy_sp_list,by="Species_2015")
+
+```
+
+
+
+give weight richness and diversity for all knolls
+
+```{r}
+
+weighted_richness<-one_observer %>%  select(knoll_id,Site,year_month,Species_2015,Abundance,part_of_common,part_of_rare)
+
+weighted_richness<-weighted_richness %>% filter(knoll_id != "NR_South bridge reserve",knoll_id != "NR_north bridge reserve",knoll_id != "NR_south bridge reserve",knoll_id != "NR_North bridge reserve",knoll_id !="NR_Tamar")
+
+weighted_richness<-weighted_richness %>% group_by(knoll_id,Site,year_month,Species_2015,part_of_common,part_of_rare) %>% summarise("abundance"=sum(Abundance))
+
+weighted_richness<-weighted_richness %>% mutate("common_abundance" = abundance*part_of_common,"rare_abundance" = abundance*part_of_rare)
+
+
+weighted_richness <- weighted_richness %>%
+  group_by(year_month,Site,knoll_id) %>%  
+  summarise("common_ind_number"= sum(common_abundance),
+            "rare_ind_number"= sum(rare_abundance),
+            "common_richness" = sum(part_of_common),
+            "rare_richness" = sum(part_of_rare),
+            "common_shannon" = diversity(common_abundance, index = "shannon") ,
+            "rare_shannon" = diversity(rare_abundance, index = "shannon"))%>%
+  arrange(Site,knoll_id,year_month) %>% group_by(knoll_id)%>%
+  mutate("delta_common_richness"=lag(common_richness)-common_richness,
+         "delta_rare_richness"=lag(rare_richness)-rare_richness,
+         "delta_common_shannon"=lag(common_shannon)-common_shannon,
+         "delta_rare_shannon"=lag(rare_shannon)-rare_shannon)
+```
+
+
+
+
+some plots
+
+dont run this chunk for ratio plots...
+```{r}
+weighted_richness<-weighted_richness %>% separate(year_month,c("year","month"))
+weighted_richness$month<-ifelse(weighted_richness$month == "a","10_1","6_1")
+weighted_richness<-weighted_richness %>% unite(year_month,year,month,sep = "_")
+weighted_richness$year_month<-ymd(weighted_richness$year_month)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+
+
+#
+ggplot(weighted_richness,aes(year_month,common_richness,color = Site,group = knoll_id))+
+  geom_line(aes(group = knoll_id))+facet_grid(Site ~.)
+
+ggplot(weighted_richness,aes(year_month,rare_richness,color = Site,group = knoll_id))+
+  geom_line(aes(group = knoll_id))+facet_grid(Site ~.)
+
+
+# richness
+
+ggplot(weighted_richness,aes(year_month,common_richness,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+ggplot(weighted_richness,aes(year_month,rare_richness,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+# delta richness
+ggplot(weighted_richness,aes(year_month,delta_common_richness,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+ggplot(weighted_richness,aes(year_month,delta_rare_richness,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+# shennon
+ggplot(weighted_richness,aes(year_month,common_shannon,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+ggplot(weighted_richness,aes(year_month,rare_shannon,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+# delta shannon
+
+ggplot(weighted_richness,aes(year_month,delta_common_shannon,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+ggplot(weighted_richness,aes(year_month,delta_rare_shannon,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+```
+
+
+```{r}
+weighted_richness %>% 
+  filter(year_month != "2017-06-01")%>% 
+  ggplot(aes(as.factor(year_month),common_richness,fill = Site))+geom_boxplot()+
+  facet_grid(Site ~.)
+
+
+weighted_richness %>% 
+  filter(year_month != "2017-06-01")%>% 
+  ggplot(aes(as.factor(year_month),rare_richness,fill = Site))+geom_boxplot()+
+  facet_grid(Site ~.)
+
+
+weighted_richness %>% 
+  filter(year_month != "2017-06-01",year_month != "2015-06-01" )%>% 
+  ggplot(aes(as.factor(year_month),delta_common_richness,fill = Site))+geom_boxplot()+
+  facet_grid(Site ~.)
+
+
+weighted_richness %>% 
+  filter(year_month != "2017-06-01",year_month != "2015-06-01" )%>% 
+  ggplot(aes(as.factor(year_month),delta_rare_richness,fill = Site))+geom_boxplot()+
+  facet_grid(Site ~.)
+
+```
+
+
+
+```{r}
+include<-c("year_month","Site","knoll_id")
+
+w_richness<-weighted_richness %>% select(all_of(include),common_richness,rare_richness) %>% 
+  rename(common = common_richness,rare = rare_richness) %>% gather("type","weighted_richness",4:5)
+
+
+w_richness %>% ggplot(aes(x= year_month,y = weighted_richness,color = knoll_id,group = type))+geom_point()+geom_smooth()+facet_grid(Site~.)
+
+
+
+```
+
+log ratio between 2018-2016 and 2020-2018
+
+```{r}
+log_ratio <- weighted_richness %>% filter(year_month != "2015 b",
+                                          year_month != "2017 b",
+                                          year_month != "2020 a") %>% 
+  select(-delta_common_richness,-delta_rare_richness,-delta_common_shannon,-delta_rare_shannon,
+         -common_ind_number,-rare_ind_number)
+
+
+ratio_list<-list()
+loop<-1
+
+for (i in unique(log_ratio$knoll_id)){
+  one_knoll<- log_ratio %>% filter(knoll_id== i)
+  
+  if(nrow(one_knoll) == 3) {
+  
+  data<-data.frame("Site" = unique(one_knoll$Site),"knoll_id" = unique(one_knoll$knoll_id))
+  
+  # common 
+  
+  data$common_rich_ratio_after <- one_knoll$common_richness[one_knoll$year_month == "2020 b"]/one_knoll$common_richness[one_knoll$year_month == "2018 b"] 
+  
+   data$common_rich_ratio_before <-one_knoll$common_richness[one_knoll$year_month == "2018 b"]/one_knoll$common_richness[one_knoll$year_month == "2016 b"] 
+  
+   data$common_shan_ratio_after <- one_knoll$common_shannon[one_knoll$year_month == "2020 b"]/one_knoll$common_shannon[one_knoll$year_month == "2018 b"] 
+  
+   data$common_shan_ratio_before <-one_knoll$common_shannon[one_knoll$year_month == "2018 b"]/one_knoll$common_shannon[one_knoll$year_month == "2016 b"]  
+  
+    # rare
+   
+    data$rare_rich_ratio_after <- one_knoll$rare_richness[one_knoll$year_month == "2020 b"]/one_knoll$rare_richness[one_knoll$year_month == "2018 b"] 
+  
+   data$rare_rich_ratio_before <-one_knoll$rare_richness[one_knoll$year_month == "2018 b"]/one_knoll$rare_richness[one_knoll$year_month == "2016 b"] 
+  
+   data$rare_shan_ratio_after <- one_knoll$rare_shannon[one_knoll$year_month == "2020 b"]/one_knoll$rare_shannon[one_knoll$year_month == "2018 b"] 
+  
+   data$rare_shan_ratio_before <-one_knoll$rare_shannon[one_knoll$year_month == "2018 b"]/one_knoll$rare_shannon[one_knoll$year_month == "2016 b"]  
+   
+   ratio_list[[loop]] <- data
+   loop<-loop+1
+
+   } 
+   
+}
+
+
+ratio_data<-bind_rows(ratio_list)
+
+
+ggplot(ratio_data,aes(x=log10(common_rich_ratio_after),y=log10(common_rich_ratio_before),color = Site))+geom_point()+
+geom_smooth(method = "lm", alpha = .15, color = "lightseagreen", fill = "lightseagreen")+
+    geom_smooth(aes(y = log10(common_rich_ratio_after),
+                    x = log10(common_rich_ratio_after)),
+                    method = "lm", alpha = .15, color ="indianred1", linetype = "dashed")
+
+
+
+ggplot(ratio_data,aes(x=log10(common_rich_ratio_after),y=log10(common_rich_ratio_before),color = Site))+geom_point()+
+geom_smooth(aes(y = log10(common_rich_ratio_after),
+                    x = log10(common_rich_ratio_after)),
+                    method = "lm", alpha = .15, color ="black", linetype = "dashed")
+
+ggplot(ratio_data,aes(x=common_rich_ratio_after,y=common_rich_ratio_before,color = Site))+geom_point()+
+    geom_smooth(aes(y = common_rich_ratio_after,
+                    x = common_rich_ratio_after),
+                    method = "lm", alpha = .15, color ="indianred1", linetype = "dashed")
+
+
+
+
+ggplot(ratio_data,aes(x=log10(common_rich_ratio_after),y=log10(common_rich_ratio_before),color = Site))+geom_point()
+
+ggplot(ratio_data,aes(x=log10(rare_rich_ratio_after),y=log10(rare_rich_ratio_before),color = Site))+geom_point()
+
+path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots for research proposal"
+
+ggplot(ratio_data,aes(x=log(common_rich_ratio_after)))+
+  geom_histogram(fill = "#593a8c",
+                 color = 'black',
+                 alpha = 0.7)+
+  geom_histogram(aes(x=log(rare_rich_ratio_after)),
+                 fill = "#017977",
+                 color = "black",
+                 alpha = 0.6)+
+  theme_classic()+
+  geom_vline(xintercept = 0, linetype="dashed", color = "black", size=1) +
+  ggtitle("After the storm") +
+  xlab("Log(species richness ratio)") + 
+  ylab("Knolls frequency")+
+    theme(plot.title = element_text(size=16, face="bold.italic"),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=14))
+  
+
+ggplot(ratio_data,aes(x=log(common_rich_ratio_before)))+
+  geom_histogram(fill = "#593a8c",
+                 color = 'black',
+                 alpha = 0.6)+
+  geom_histogram(aes(x=log(rare_rich_ratio_before)),
+                 fill = "#017977",
+                 color = "black",
+                 alpha = 0.6)+
+  theme_classic()+
+  geom_vline(xintercept = 0, linetype="dashed",color = "black", size=1.1)+
+  ggtitle("Before the storm") +
+  xlab("Log(species richness ratio)") + 
+  ylab("Knolls frequency")+
+  theme(plot.title = element_text(size=16, face="bold.italic"),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=14))
+
+ggplot(ratio_data,aes(x=common_rich_ratio_after))+
+  geom_histogram(fill = "#593a8c",
+                 color = 'black',
+                 alpha = 0.7)+
+  geom_histogram(aes(x=rare_rich_ratio_after),
+                 fill = "#017977",
+                 color = "black",
+                 alpha = 0.6)+
+  theme_classic()+
+  geom_vline(xintercept = 1, linetype="dashed", color = "black", size=1) +
+  ggtitle("After the storm") +
+  xlab("Species richness ratio") + 
+  ylab("Knolls frequency")+
+    theme(plot.title = element_text(size=16, face="bold.italic"),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=14))
+    
+
+ggsave("frq_ratio_after.pdf",path = path )
+ggsave("frq_ratio_after.png",path = path )
+
+
+ggplot(ratio_data,aes(x=common_rich_ratio_before),)+
+  geom_histogram(fill = "#593a8c",
+                 color = 'black',
+                 alpha = 0.6)+
+  geom_histogram(aes(x=rare_rich_ratio_before),
+                 fill = "#017977",
+                 color = "black",
+                 alpha = 0.6)+
+  theme_classic()+
+  geom_vline(xintercept = 1,color = "black" ,linetype="dashed",color = "black", size=1.1)+
+  ggtitle("Before the storm") +
+  xlab("Species richness ratio") +
+  ylab("Knolls frequency")+
+  theme(plot.title = element_text(size=16, face="bold.italic"),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=14))
+
+ggsave("frq_ratio_before.pdf",path = path )
+ggsave("frq_ratio_before.png",path = path )
+ 
+  
+``` 
+
+
+shannon plots
+
+```{r}
+ggplot(ratio_data,aes(x=common_shan_ratio_after))+
+  geom_histogram(fill = "#d0583d",
+                 color = 'black',
+                 alpha = 0.7)+
+  geom_histogram(aes(x=rare_shan_ratio_after),
+                 fill = "#9eb038",
+                 color = "black",
+                 alpha = 0.6)+
+  theme_classic()+
+  geom_vline(xintercept = 1, linetype="dashed", color = "black", size=1) +
+  ggtitle("After the storm") +
+  xlab("Shannon diversity ratio") + 
+  ylab("Knolls frequency")+
+    theme(plot.title = element_text(size=16, face="bold.italic"),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=14))
+    
+
+ggsave("frq_shannon_ratio_after.pdf",path = path )
+ggsave("frq_shannon_ratio_after.png",path = path )
+
+
+
+ggplot(ratio_data,aes(x=common_shan_ratio_before))+
+  geom_histogram(fill = "#d0583d",
+                 color = 'black',
+                 alpha = 0.7)+
+  geom_histogram(aes(x=rare_shan_ratio_before),
+                 fill = "#9eb038",
+                 color = "black",
+                 alpha = 0.6)+
+  theme_classic()+
+  geom_vline(xintercept = 1, linetype="dashed", color = "black", size=1) +
+  ggtitle("Before the storm") +
+  xlab("Shannon diversity ratio") + 
+  ylab("Knolls frequency")+
+    theme(plot.title = element_text(size=16, face="bold.italic"),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=14))
+    
+
+ggsave("frq_shannon_ratio_before.pdf",path = path )
+ggsave("frq_shannon_ratio_before.png",path = path )
+
+
+```
+
+species area relationship
+
+```{r}
+
+
+
+```
+
+log ratio models 
+
+```{r}
+common_richnes<-ratio_data %>% select(1:4) %>% rename("before"="common_rich_ratio_before","after" = "common_rich_ratio_after")
+
+common_richnes<-gather(common_richnes,"Status","Richness",3:4)
+
+common_richnes<-common_richnes %>% arrange(Site,knoll_id,Status)
+
+knoll_data<-one_observer %>% distinct(knoll_id,.keep_all = T) %>% select(knoll_id,Surface.Area,projected_area_ellipse) %>% na.omit()
+
+common_richnes <-left_join(common_richnes,knoll_data,by ="knoll_id")
+
+```
+
+
+```{r}
+sp_surface_area<-list()
+
+sp_surface_area[[1]]<-lmer(formula = log(Richness) ~ log(Surface.Area)+ (1|Site) + Status ,data = common_richnes)
+
+summary(sp_surface_area[[1]])
+r.squaredGLMM(sp_surface_area[[1]])
+
+sp_surface_area[[2]]<-lmer(formula = log(Richness) ~ log(projected_area_ellipse)+ (1|Site) + Status ,data = common_richnes)
+
+summary(sp_surface_area[[2]])
+r.squaredGLMM(sp_surface_area[[2]])
+
+
+sp_surface_area[[3]]<-lm(formula = log(Richness) ~ log(Surface.Area)*Site + Status ,data = common_richnes)
+
+summary(sp_surface_area[[3]])
+r.squaredGLMM(sp_surface_area[[3]])
+
+sp_surface_area[[4]]<-lm(formula = log(Richness) ~ log(Surface.Area)*Status + Site ,data = common_richnes)
+
+summary(sp_surface_area[[4]])
+r.squaredGLMM(sp_surface_area[[4]])
+
+sp_surface_area[[5]]<-lm(formula = log(Richness) ~ log(Surface.Area)+Site + Status ,data = common_richnes)
+
+summary(sp_surface_area[[5]])
+r.squaredGLMM(sp_surface_area[[5]])
+
+```
+
+models
+
+
+```{r}
+rare_richnes<-ratio_data %>% select(1,2,7,8) %>% rename("before"="rare_rich_ratio_before","after" = "rare_rich_ratio_after")
+
+rare_richnes<-gather(rare_richnes,"Status","Richness",3:4)
+
+rare_richnes<-rare_richnes %>% arrange(Site,knoll_id,Status)
+
+rare_richnes <-left_join(rare_richnes,knoll_data,by ="knoll_id")
+
+
+rare_surface_area<-list()
+
+rare_surface_area[[1]]<-lmer(formula = log(Richness) ~ log(Surface.Area)+ (1|Site) + Status ,data = rare_richnes)
+
+summary(rare_surface_area[[1]])
+r.squaredGLMM(rare_surface_area[[1]])
+```
+
+
+remove species in the middel
+
+```{r}
+
+sig_statuts <- fuzzy_sp_list %>% filter(part_of_common>0.66|part_of_common <0.33)
+
+
+weighted_richness<-one_observer %>%  select(knoll_id,Site,year_month,Species_2015,Abundance,part_of_common,part_of_rare)
+
+weighted_richness<-weighted_richness %>% filter(knoll_id != "NR_South bridge reserve",knoll_id != "NR_north bridge reserve",knoll_id != "NR_south bridge reserve",knoll_id != "NR_North bridge reserve",knoll_id !="NR_Tamar")
+
+weighted_richness<-weighted_richness %>% filter(Species_2015 %in% sig_statuts$Species_2015)
+
+weighted_richness<-weighted_richness %>% group_by(knoll_id,Site,year_month,Species_2015,part_of_common,part_of_rare) %>% summarise("abundance"=sum(Abundance))
+
+weighted_richness<-weighted_richness %>% mutate("common_abundance" = abundance*part_of_common,"rare_abundance" = abundance*part_of_rare)
+
+
+weighted_richness <- weighted_richness %>%
+  group_by(year_month,Site,knoll_id) %>%  
+  summarise("common_ind_number"= sum(common_abundance),
+            "rare_ind_number"= sum(rare_abundance),
+            "common_richness" = sum(part_of_common),
+            "rare_richness" = sum(part_of_rare),
+            "common_shannon" = diversity(common_abundance, index = "shannon") ,
+            "rare_shannon" = diversity(rare_abundance, index = "shannon"))%>%
+  arrange(Site,knoll_id,year_month) %>% group_by(knoll_id)%>%
+  mutate("delta_common_richness"=lag(common_richness)-common_richness,
+         "delta_rare_richness"=lag(rare_richness)-rare_richness,
+         "delta_common_shannon"=lag(common_shannon)-common_shannon,
+         "delta_rare_shannon"=lag(rare_shannon)-rare_shannon)
+
+
+weighted_richness<-weighted_richness %>% separate(year_month,c("year","month"))
+weighted_richness$month<-ifelse(weighted_richness$month == "a","10_1","6_1")
+weighted_richness<-weighted_richness %>% unite(year_month,year,month,sep = "_")
+weighted_richness$year_month<-ymd(weighted_richness$year_month)
+
+#
+ggplot(weighted_richness,aes(year_month,common_richness,color = Site,group = knoll_id))+
+  geom_line(aes(group = knoll_id))+facet_grid(Site ~.)
+
+ggplot(weighted_richness,aes(year_month,rare_richness,color = Site,group = knoll_id))+
+  geom_line(aes(group = knoll_id))+facet_grid(Site ~.)
+
+
+# richness
+
+ggplot(weighted_richness,aes(year_month,common_richness,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+ggplot(weighted_richness,aes(year_month,rare_richness,color = Site))+geom_point(aes(group = knoll_id))+geom_jitter()+geom_smooth()
+
+```
+
+
+need to use real models...
+
+
+# nmds by relative culster...
+
+common sp 
+
+
+```{r}
+weighted_nmds<-one_observer %>%  select(knoll_id,Site,year_month,Species_2015,Abundance,part_of_common,part_of_rare)
+
+weighted_nmds<-weighted_nmds %>% filter(knoll_id != "NR_South bridge reserve",knoll_id != "NR_north bridge reserve",knoll_id != "NR_south bridge reserve",knoll_id != "NR_North bridge reserve",knoll_id !="NR_Tamar")
+
+weighted_nmds<-weighted_nmds %>% group_by(knoll_id,Site,year_month,Species_2015,part_of_common,part_of_rare) %>% summarise("abundance"=sum(Abundance)) %>% ungroup()
+
+weighted_nmds<-weighted_nmds %>% mutate("common_abundance" = abundance*part_of_common,"rare_abundance" = abundance*part_of_rare)
+
+wide_nmds_common<-weighted_nmds %>% select(year_month,Site,knoll_id,Species_2015,common_abundance) 
+
+wide_nmds_common<-spread(wide_nmds_common,Species_2015,common_abundance,fill = 0)
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+wis_data <- wisconsin(wide_nmds_common[,4:ncol(wide_nmds_common)])
+ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+
+stressplot(ord)
+ord[["stress"]]
+
+Year <- factor(wide_nmds_common$year_month)
+  
+ordiplot(ord, type = "n", main = "common species")
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = wide_nmds_common$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+
+
+```
+
+
+```{r}
+wide_nmds_rare<-weighted_nmds %>% select(year_month,Site,knoll_id,Species_2015,rare_abundance) 
+
+wide_nmds_rare<-spread(wide_nmds_rare,Species_2015,rare_abundance,fill = 0)
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+wis_data <- wisconsin(wide_nmds_rare[,4:ncol(wide_nmds_rare)])
+ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+
+stressplot(ord)
+ord[["stress"]]
+
+Year <- factor(wide_nmds_rare$year_month)
+  
+ordiplot(ord, type = "n", main = "rare species")
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = wide_nmds_rare$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+```
+
+
+
+
+
+
+
+# nmds for rare and common by year seperatly
+
+wide data for common species only
+
+
+```{r}
+#commom_fish_2015 <- one_observer %>% filter(cluster==1) %>% 
+#  group_by(Site,Year,year_month,Knoll,Surface.Area,Max.depth,Date,survey_id,Species_2015) %>%
+#  summarise("aboundance"=sum(Abundance))
+
+commom_fish_2015 <- one_observer %>% filter(cluster==1) %>% 
+  group_by(Site,year_month,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_common_2015<-spread(commom_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_common_2015<-na.omit(wide_common_2015)
+
+rm(commom_fish_2015)
+```
+
+
+wide data for rare species only
+
+```{r}
+rare_fish_2015 <- one_observer %>% filter(cluster == 0) %>% 
+  group_by(Site,year_month,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_rare_2015<-spread(rare_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_rare_2015<-na.omit(wide_rare_2015)
+
+rm(rare_fish_2015)
+
+```
+
+
+```{r}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+wis_data <- wisconsin(wide_common_2015[,9:ncol(wide_common_2015)])
+ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+
+stressplot(ord)
+ord[["stress"]]
+
+Year <- factor(wide_common_2015$year_month)
+  
+ordiplot(ord, type = "n", main = "common species")
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = wide_common_2015$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+ordiplot(ord, type = "n", main = "common species")
+ordihull(ord, groups = wide_common_2015$year_month,
+                     draw = "polygon",alpha = 0.5,col=color_y,label=F)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+```
+
+```{r}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+wis_data <- wisconsin(wide_rare_2015[,9:ncol(wide_rare_2015)])
+ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+stressplot(ord)
+ord[["stress"]]
+
+Year <- factor(wide_rare_2015$year_month)
+  
+ordiplot(ord, type = "n", main = "rare species")
+orditorp(ord, label = T, display = "site", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = wide_rare_2015$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+ordiplot(ord, type = "n", main = "Rare species")
+ordihull(ord, groups = wide_common_2015$year_month,
+                     draw = "polygon",alpha = 0.5,col=color_y,label=F)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+```
+
+```{r}
+all_fish_2015 <- one_observer %>% 
+  group_by(Site,year_month,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_all_2015<-spread(all_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_all_2015<-na.omit(wide_all_2015)
+
+rm(all_fish_2015)
+```
+
+```{r}
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+wis_data <- wisconsin(wide_all_2015[,9:ncol(wide_all_2015)])
+ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+stressplot(ord)
+ord[["stress"]]
+
+Year <- factor(wide_all_2015$year_month)
+  
+ordiplot(ord, type = "n", main = "all species")
+orditorp(ord, label = T, display = "site", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = wide_all_2015$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+ordiplot(ord, type = "n", main = "all species")
+ordihull(ord, groups = wide_all_2015$year_month,
+                     draw = "polygon",alpha = 0.5,col=color_y,label=F)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+```
+

@@ -1,0 +1,853 @@
+---
+title: "5.2 beta diversity and rarefaction"
+author: "TG"
+date: "7 2 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+load("survey_list.Rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+#library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+1) set one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 0
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <1)
+
+```
+
+3) filter the north beach
+```{r}
+
+one_observer<-one_observer %>%
+  filter(Site !="North beach",
+         ! Knoll %in% c("Tamar","South bridge reserve","south bridge reserve",
+                        "North bridge reserve","north bridge reserve"))
+  
+```
+
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+```{r}
+knoll_survey <- survey_list %>%
+  drop_na(Knoll) %>%
+  filter(Site != "North beach") %>% 
+  group_by(Site,Year,month(Date)) %>%
+  summarise("knolls" = n()) 
+ 
+knoll_survey$Season<-ifelse(knoll_survey$`month(Date)`==6,
+                            paste0("Spring_",knoll_survey$Year),
+                            paste0("Fall_",knoll_survey$Year))
+knoll_survey$`month(Date)`<-NULL
+knoll_survey$Year<-NULL
+knoll_survey<-spread(knoll_survey,Season,knolls)
+
+
+```
+
+
+
+create wide data for:
+
+1. species by 2015 categories - wide_2015 (for each site comparison)
+
+2. species by each year resolution (i.e Species column) - wide_data (for each year comparison)
+
+
+
+
+### 1. mobr_2015_data
+
+species by 2015 categories - wide_2015 (for each site comparison)
+
+
+```{r include=FALSE}
+all_fish_2015 <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,DD_X,DD_Y,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_2015<-spread(all_fish_2015,Species_2015,aboundance,fill = 0)
+
+
+```
+
+### 2. mobr_data
+
+species by each year resolution (i.e Species column) - wide_data (for each year comparison)
+
+
+```{r include=FALSE}
+all_fish <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,DD_X,DD_Y,Surface_Area,Max_depth,Date,survey_id,Species) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data<-spread(all_fish,Species,aboundance,fill = 0)
+
+
+```
+
+
+
+5) rarefaction grouped by site (all years together) 
+
+
+
+
+```{r}
+data<- wide_2015 
+
+data<-data %>% drop_na(Surface_Area)
+
+species_data<-data[,11:ncol(data)]
+site_data<-data[,1:11]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+ggplot(site_data,aes(Site,Surface_Area,fill = Site))+geom_violin()+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.4,shape=16,fill="black")+
+  theme_bw()
+
+mobr_2015_data <- make_mob_in(species_data, site_data,coord_names = c("DD_Y","DD_X"))
+
+
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+
+plot_rarefaction(mobr_2015_data, 'Site', method='sSBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'Site', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "Site",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = 50)
+# plot(site_stats,"S")
+# plot(site_stats,"S_n")
+
+pdf(file="mobr_2015_allyaersNsites.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+
+jpeg(file="mobr_2015_allyaersNsites_N.jpeg",width=600, height=350)
+plot(site_stats,"N")
+dev.off()
+
+plot(site_stats,'S_n')
+
+
+```
+
+maybe remove the: 
+Pseudanthias squamipinnis (Pseudanthias spp.)
+Neopomacentrus miryae
+Chromis viridis
+Atherinidae
+
+
+```{r}
+data<- wide_2015 
+
+data<- data %>% filter(Year != "2017")
+
+data$`Pseudanthias spp.`<-NULL
+data$`Chromis viridis`<-NULL
+data$`Neopomacentrus miryae`<-NULL
+data$Atherinidae<-NULL
+
+species_data<-data[,11:ncol(data)]
+
+site_data<-data[,1:11]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+ggplot(site_data,aes(Site,Surface_Area,fill = Site))+geom_violin()+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.4,shape=16,fill="black")+
+  theme_bw()
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_2015_data, 'Site', method='SBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'Site', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "Site",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = c(10,100,1000))
+
+
+plot(site_stats)
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\sp_data_2015_no_schools.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\sample_rare_2015_sp_data_no_schools.pdf",width=10, height=7)
+plot_rarefaction(mobr_2015_data, 'Site', method='SBR', lwd=4,leg_loc='bottomright')
+dev.off()
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\Ind_rare_2015_sp_data_no_schools.pdf",width=10, height=7)
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+dev.off()
+```
+in this type of data there is a plato of species that the sites can reach to (~ 80 in the list) so it make sense most of them did...
+
+"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots"
+
+
+
+```{r}
+data<- wide_data
+data<- data %>% filter(Year != "2017")
+
+#data$`Pseudanthias spp.`<-NULL
+#data$`Chromis viridis`<-NULL
+#data$`Neopomacentrus miryae`<-NULL
+#data$Atherinidae<-NULL
+#data$`Pseudanthias squamipinnis`<-NULL
+
+species_data<-data[,9:ncol(data)]
+site_data<-data[,1:8]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+ggplot(site_data,aes(Site,Surface_Area,fill = Site))+geom_violin()+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.4,shape=16,fill="black")+
+  theme_bw()
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_2015_data, 'Site', method='SBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'Site', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "Site",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = c(10,100,1000))
+# plot(site_stats,"S")
+# plot(site_stats,"S_n")
+
+
+plot(site_stats,'S_n')
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\full_sp_data_with_schools.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\sample_rare_full_sp_data_with_schools.pdf",width=10, height=7)
+plot_rarefaction(mobr_2015_data, 'Site', method='SBR', lwd=4,leg_loc='bottomright')
+dev.off()
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\Ind_rare_full_sp_data_with_schools.pdf",width=10, height=7)
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+dev.off()
+
+
+```
+only for high resolution data:
+
+
+```{r}
+data<- wide_data
+data<- data %>% filter(!Year %in% c("2017", "2016", "2015")) %>% drop_na(Surface_Area)
+
+
+data$`Pseudanthias spp.`<-NULL
+data$`Chromis viridis`<-NULL
+data$`Neopomacentrus miryae`<-NULL
+data$Atherinidae<-NULL
+data$`Pseudanthias squamipinnis`<-NULL
+
+species_data<-data[,12:ncol(data)]
+site_data<-data[,1:11]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+ggplot(site_data,aes(Site,Surface_Area,fill = Site))+geom_violin()+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.4,shape=16,fill="black")+
+  theme_bw()
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_2015_data, 'Site', method='SBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'Site', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "Site",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = c(10,100,1000))
+# plot(site_stats,"S")
+# plot(site_stats,"S_n")
+
+plot(site_stats)
+plot(site_stats,'S_n')
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\full_sp_data_with_schools.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\sample_rare_full_sp_data_with_schools.pdf",width=10, height=7)
+plot_rarefaction(mobr_2015_data, 'Site', method='SBR', lwd=4,leg_loc='bottomright')
+dev.off()
+
+pdf(file="C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\rarefaction plots\\Ind_rare_full_sp_data_with_schools.pdf",width=10, height=7)
+plot_rarefaction(mobr_2015_data, 'Site', method='IBR', lwd=4,leg_loc='bottomright')
+dev.off()
+
+
+```
+
+5) rarefaction for each site along the years
+
+first all sites together
+
+```{r}
+data<- wide_2015 
+
+data
+data<- data %>% filter(Year != "2017")
+species_data<-data[,9:ncol(data)]
+site_data<-data[,1:8]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_2015_data,'year_month', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_2015_data,'year_month',method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_2015_data,'year_month', method='SBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'year_month', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "year_month",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = c(10,100,1000))
+plot(site_stats)
+
+# plot(site_stats,"S")
+# plot(site_stats,"S_n")
+
+pdf(file="mobr_2015_sites_with_school.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+
+jpeg(file="mobr_2015_sites_with_school.jpeg",width=600, height=350)
+plot(site_stats,"N")
+dev.off()
+
+plot(site_stats,'S_n')
+
+```
+
+
+all sites together - no schools
+
+
+```{r}
+data<- wide_2015 
+
+data
+data<- data %>% filter(Year != "2017")
+
+data$`Pseudanthias spp.`<-NULL
+data$`Chromis viridis`<-NULL
+data$`Neopomacentrus miryae`<-NULL
+data$Atherinidae<-NULL
+
+
+
+species_data<-data[,11:ncol(data)]
+site_data<-data[,1:11]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_2015_data,'year_month', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_2015_data,'year_month',method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_2015_data,'year_month', method='SBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'year_month', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "year_month",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = c(10,100,1000))
+plot(site_stats)
+
+
+# plot(site_stats,"S")
+# plot(site_stats,"S_n")
+
+pdf(file="mobr_2015_sites_with_noschool.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+
+jpeg(file="mobr_2015_sites_with_noschool_N.jpeg",width=600, height=350)
+plot(site_stats,"N")
+dev.off()
+
+plot(site_stats,'S_n')
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+for (i in unique(wide_2015$Site)){
+  
+data<- wide_2015 %>% filter(Site == i)  
+species_data<-data[,9:ncol(data)]
+
+site_data<-data[,1:8]
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+print(i)
+plot_rarefaction(mobr_2015_data, 'year_month', method='IBR', lwd=4)
+plot_rarefaction(mobr_2015_data, 'year_month',method= 'SBR', lwd=4)
+plot_abu(mobr_2015_data, 'year_month', type='rad', pooled=T, log='x')    
+}
+
+
+```
+
+6) rarefaction for each year along the years
+
+```{r}
+
+for (i in unique(wide_data$year_month)) {
+  
+  data<- wide_data %>% filter(year_month== i)
+  species_data<-data[,11:ncol(data)]
+
+site_data<-data[,1:11]
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+mobr_data <- make_mob_in(species_data, site_data)
+
+print(i)
+plot_rarefaction(mobr_data, 'Site',method=  'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'Site',method=  'SBR', lwd=4)
+plot_abu(mobr_data, 'Site', type='rad', pooled=T, log='x')  
+  
+  
+}
+
+```
+
+
+
+7) calculate indexes 
+
+by site
+
+• S - Observed species richness
+• N - Number of individuals
+• S_n - Rarefied species richness (Hurlbert 1971)
+• S_PIE - Effective number of species based on PIE (Jost 2007)
+
+
+
+
+```{r}
+for (i in unique(wide_2015$Site)){
+  
+data<- wide_2015 %>% filter(Site == i)  
+species_data<-data[,9:ncol(data)]
+
+site_data<-data[,1:8]
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "year_month",n_perm = 200)
+print(i)
+plot(site_stats, 'S')
+plot(site_stats, 'N')
+plot(site_stats, 'S_n')
+plot(site_stats, 'S_PIE')
+   
+}
+```
+
+for each year
+
+```{r}
+for (i in unique(wide_data$year_month)) {
+  
+  data<- wide_data %>% filter(year_month== i)
+  species_data<-data[,9:ncol(data)]
+
+site_data<-data[,1:8]
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+mobr_data <- make_mob_in(species_data, site_data)
+
+print(i)
+year_stats <- get_mob_stats(mobr_data, group_var = "Site",n_perm = 200)
+
+plot(year_stats, 'S')
+plot(year_stats, 'N')
+plot(year_stats, 'S_n')
+plot(year_stats, 'S_PIE') 
+  
+  
+}
+```
+5) rarefaction grouped by storm
+
+
+
+
+```{r}
+data<- wide_2015 
+
+data<-data %>% mutate(storm = if_else(Year %in% c("2020","2021"),"After","Before"),.after = 4)
+
+species_data<-data[,10:ncol(data)]
+site_data<-data[,1:9]
+
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+
+mobr_2015_data <- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_2015_data, 'storm', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_2015_data, 'storm', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_2015_data, 'storm', method='SBR', lwd=4,leg_loc='bottomright')
+
+plot_abu(mobr_2015_data, 'storm', type='rad', pooled=T, log='x')    
+
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "storm",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = c(10,100,1000))
+
+site_stats <- get_mob_stats(mobr_2015_data, group_var = "storm",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = 500)
+
+plot(site_stats)
+
+
+
+
+
+# plot(site_stats,"S")
+# plot(site_stats,"S_n")
+
+pdf(file="mobr_2015_allyaersNsites.pdf",width=10, height=7)
+plot(site_stats)
+dev.off()
+
+
+jpeg(file="mobr_2015_allyaersNsites_N.jpeg",width=600, height=350)
+plot(site_stats,"N")
+dev.off()
+
+plot(site_stats,'S_n')
+
+
+```
+
+# finel?
+
+here ill take the full species data for years 2018-2021 *and* keep only the knolls that were sampled in the storm so the effeort will be similar.
+ill keep all the sites toghther for now...
+
+
+## full data no schools
+
+```{r}
+data<- wide_data %>%
+  mutate("Site_Knoll" = paste(Site,Knoll,sep="_"),.after = Knoll
+) %>%
+  filter(Year > 2017)  %>%
+  drop_na(DD_X) 
+
+data$`Pseudanthias spp.`<-NULL
+data$`Chromis viridis`<-NULL
+data$`Neopomacentrus miryae`<-NULL
+data$Atherinidae<-NULL
+
+species_data<-data[,12:ncol(data)]
+site_data<-data[,1:11]
+
+mobr_data <- make_mob_in(species_data, site_data,coord_names = c("DD_Y","DD_X"))
+
+# rarefaction curves
+
+plot_rarefaction(mobr_data, 'year_month',method=  'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'SBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'sSBR', lwd=4)
+plot_abu(mobr_data, 'year_month', type='rad', pooled=T, log='x') 
+
+```
+
+
+```{r}
+
+
+after_storm_knoll<- one_observer %>% filter(year_month =="2020 a") %>% distinct(knoll_id)
+
+data<- wide_data %>%
+  mutate("Site_Knoll" = paste(Site,Knoll,sep="_"),.after = Knoll
+) %>%
+  filter(year_month %in% c("2018 b","2020 a"))  %>%
+  drop_na(DD_X) %>%
+  filter(Site_Knoll %in% after_storm_knoll$knoll_id)
+  
+species_data<-data[,12:ncol(data)]
+site_data<-data[,1:11]
+
+mobr_data <- make_mob_in(species_data, site_data,coord_names = c("DD_Y","DD_X"))
+
+# rarefaction curves
+
+plot_rarefaction(mobr_data, 'year_month',method=  'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'SBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'sSBR', lwd=4)
+plot_abu(mobr_data, 'year_month', type='rad', pooled=T, log='x') 
+
+# 2 dim stats
+
+site_stats <- get_mob_stats(mobr_data, group_var = "year_month",n_perm = 100,boot_groups = TRUE,effort_samples = 50)
+
+plot(site_stats)
+
+
+# 3 dim
+
+delta <- get_delta_stats(mobr_data,env_var = "year_month",type="discrete",n_perm = 20)
+
+plot(delta)
+
+pdf(file="delta_2018_2020a.pdf",width=10, height=7)
+plot(delta)
+dev.off()
+
+```
+same bur without schools
+```{r}
+data<- wide_data %>%
+  mutate("Site_Knoll" = paste(Site,Knoll,sep="_"),.after = Knoll
+) %>%
+  filter(year_month %in% c("2018 b","2020 a")) %>%
+  drop_na(DD_X) %>%
+  filter(Site_Knoll %in% after_storm_knoll$knoll_id)
+
+data$`Pseudanthias spp.`<-NULL
+data$`Chromis viridis`<-NULL
+data$`Neopomacentrus miryae`<-NULL
+data$Atherinidae<-NULL
+ 
+species_data<-data[,12:ncol(data)]
+site_data<-data[,1:11]
+
+mobr_data <- make_mob_in(species_data, site_data,coord_names = c("DD_Y","DD_X"))
+
+plot_rarefaction(mobr_data, 'year_month',method=  'SBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'sSBR', lwd=4)
+plot_abu(mobr_data, 'year_month', type='rad', pooled=T, log='x') 
+
+# 2 dim stats
+
+site_stats <- get_mob_stats(mobr_data, group_var = "year_month",n_perm = 100,boot_groups = TRUE,effort_samples = 50)
+
+plot(site_stats)
+
+
+# 3 dim
+
+delta <- get_delta_stats(mobr_data,env_var = "year_month",type="discrete",n_perm = 50)
+
+plot(delta)
+
+pdf(file="delta_2018_2020a_no_school.pdf",width=10, height=7)
+plot(delta)
+dev.off()
+
+```
+without filtering only mutal knolls
+
+```{r}
+
+
+data<- wide_data %>%
+  mutate("Site_Knoll" = paste(Site,Knoll,sep="_"),.after = Knoll
+) %>%
+  filter(year_month %in% c("2018 b","2020 a"))  %>%
+  drop_na(DD_X)
+
+data$`Pseudanthias spp.`<-NULL
+data$`Chromis viridis`<-NULL
+data$`Neopomacentrus miryae`<-NULL
+data$Atherinidae<-NULL
+  
+species_data<-data[,12:ncol(data)]
+site_data<-data[,1:11]
+
+mobr_data <- make_mob_in(species_data, site_data,coord_names = c("DD_Y","DD_X"))
+
+# rarefaction curves
+
+plot_rarefaction(mobr_data, 'year_month',method=  'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'SBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'sSBR', lwd=4)
+plot_abu(mobr_data, 'year_month', type='rad', pooled=T, log='x') 
+
+# 2 dim stats
+
+site_stats <- get_mob_stats(mobr_data, group_var = "year_month",n_perm = 100,boot_groups = TRUE,effort_samples = 50)
+
+plot(site_stats)
+
+
+# 3 dim
+
+delta <- get_delta_stats(mobr_data,env_var = "year_month",type="discrete",n_perm = 20)
+
+plot(delta)
+
+pdf(file="delta_2018_2020a_all_knoll_no school.pdf",width=10, height=7)
+plot(delta)
+dev.off()
+
+```
+
+
+
+
+```{r}
+
+after_storm_knoll<- one_observer %>% filter(year_month =="2020 a") %>% distinct(knoll_id)
+
+data<- wide_data %>%
+  mutate("Site_Knoll" = paste(Site,Knoll,sep="_"),.after = Knoll
+) %>%
+  filter(year_month %in% c("2020 a","2021 a"))  %>%
+  drop_na(DD_X) %>%
+  filter(Site_Knoll %in% after_storm_knoll$knoll_id)
+  
+species_data<-data[,12:ncol(data)]
+site_data<-data[,1:11]
+
+mobr_data <- make_mob_in(species_data, site_data,coord_names = c("DD_Y","DD_X"))
+
+# rarefaction curves
+
+plot_rarefaction(mobr_data, 'year_month',method=  'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'SBR', lwd=4)
+plot_rarefaction(mobr_data, 'year_month',method=  'sSBR', lwd=4)
+plot_abu(mobr_data, 'year_month', type='rad', pooled=T, log='x') 
+
+# 2 dim stats
+
+site_stats <- get_mob_stats(mobr_data, group_var = "year_month",n_perm = 100,boot_groups = TRUE,effort_samples = 50)
+
+plot(site_stats)
+
+
+# 3 dim
+
+delta <- get_delta_stats(mobr_data,env_var = "year_month",type="discrete",n_perm = 20)
+
+plot(delta)
+
+pdf(file="delta_2020a_2021a.pdf",width=10, height=7)
+plot(delta)
+dev.off()
+```
+
+

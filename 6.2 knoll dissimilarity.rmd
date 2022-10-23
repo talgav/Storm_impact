@@ -1,0 +1,721 @@
+---
+title: "6.2 knoll dissimilarity"
+author: "TG"
+date: "28 2 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r include=FALSE}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r include=FALSE}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r include=FALSE}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+3) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+create wide data for:
+
+1. species by 2015 categories - wide_2015 (for each site comparison)
+
+2. no transient fish for 2015 division - wide_cryptic_2015
+
+
+
+
+### 1. wide_2015
+
+```{r include=FALSE}
+all_fish_2015 <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface.Area,Max.depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_2015<-spread(all_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_2015<-na.omit(wide_2015)
+
+rm(all_fish_2015)
+```
+
+
+### 2.wide_cryptic_2015
+
+
+```{r include=FALSE}
+cryp_fish_2015 <- one_observer %>% filter(Status != "T") %>% 
+  group_by(Site,Year,year_month,Knoll,Surface.Area,Max.depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_cryptic_2015<-spread(cryp_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_cryptic_2015<-na.omit(wide_cryptic_2015)
+
+rm(cryp_fish_2015)
+```
+
+
+
+
+# nMDS
+
+## for all fish
+
+### wisconsin
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col =data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- wisconsin(data_no_j[,9:ncol(data_no_j)])
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+  orditorp(ord_n, label = T, display = "sites",col =data_no_j$Knoll,pch = 16)
+  
+  area_nj <-ordihull(ord_n, groups = data_no_j$Knoll,
+                     draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n<-summary(area_nj)
+  n<-as.data.frame(n)
+  n<-n[3,]
+  n<-gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data<-left_join(p,n,by="Knoll")
+  
+  area_data$Site<-rep(i)
+
+  area_list[[i]]<-area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+
+
+```
+
+### no transformation
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col =data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- data_no_j[,9:ncol(data_no_j)]
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+  orditorp(ord_n, label = T, display = "sites",col =data_no_j$Knoll,pch = 16)
+  
+  area_nj <-ordihull(ord_n, groups = data_no_j$Knoll,
+                     draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n<-summary(area_nj)
+  n<-as.data.frame(n)
+  n<-n[3,]
+  n<-gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data<-left_join(p,n,by="Knoll")
+  
+  area_data$Site<-rep(i)
+
+  area_list[[i]]<-area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+
+```
+
+### square-root
+
+
+
+
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- sqrt(wis_data) 
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2, autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  #orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col = data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- data_no_j[,9:ncol(data_no_j)]
+  wis_data_no<- sqrt(wis_data_no)
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+ # orditorp(ord_n, label = F, display = "sites",col =data_no_j$Knoll,pch = 16)
+  area_nj <- ordihull(ord_n, groups = data_no_j$Knoll,
+                      draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n <- summary(area_nj)
+  n <- as.data.frame(n)
+  n <- n[3,]
+  n <- gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data <- left_join(p,n,by="Knoll")
+  
+  area_data$Site <- rep(i)
+
+  area_list[[i]]<- area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+
+```
+
+
+
+
+### forth-root
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- wis_data^0.25 
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2, autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  #orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col = data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- data_no_j[,9:ncol(data_no_j)]
+  wis_data_no<- wis_data_no ^ 0.25
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+ # orditorp(ord_n, label = F, display = "sites",col =data_no_j$Knoll,pch = 16)
+  area_nj <- ordihull(ord_n, groups = data_no_j$Knoll,
+                      draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n <- summary(area_nj)
+  n <- as.data.frame(n)
+  n <- n[3,]
+  n <- gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data <- left_join(p,n,by="Knoll")
+  
+  area_data$Site <- rep(i)
+
+  area_list[[i]]<- area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+  
+
+```
+
+## for core species only
+
+##core fish only
+
+### wisconson 
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col =data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- wisconsin(data_no_j[,9:ncol(data_no_j)])
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+  orditorp(ord_n, label = T, display = "sites",col =data_no_j$Knoll,pch = 16)
+  
+  area_nj <-ordihull(ord_n, groups = data_no_j$Knoll,
+                     draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n<-summary(area_nj)
+  n<-as.data.frame(n)
+  n<-n[3,]
+  n<-gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data<-left_join(p,n,by="Knoll")
+  
+  area_data$Site<-rep(i)
+
+  area_list[[i]]<-area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_cryptic_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = delta_area,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = "gam",alpha=0.1)
+
+
+```
+
+### no transformation
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col =data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- data_no_j[,9:ncol(data_no_j)]
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+  orditorp(ord_n, label = T, display = "sites",col =data_no_j$Knoll,pch = 16)
+  
+  area_nj <-ordihull(ord_n, groups = data_no_j$Knoll,
+                     draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n<-summary(area_nj)
+  n<-as.data.frame(n)
+  n<-n[3,]
+  n<-gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data<-left_join(p,n,by="Knoll")
+  
+  area_data$Site<-rep(i)
+
+  area_list[[i]]<-area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_cryptic_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+
+```
+
+### square-root
+
+
+
+
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- sqrt(wis_data) 
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2, autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  #orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col = data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- data_no_j[,9:ncol(data_no_j)]
+  wis_data_no<- sqrt(wis_data_no)
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+ # orditorp(ord_n, label = F, display = "sites",col =data_no_j$Knoll,pch = 16)
+  area_nj <- ordihull(ord_n, groups = data_no_j$Knoll,
+                      draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n <- summary(area_nj)
+  n <- as.data.frame(n)
+  n <- n[3,]
+  n <- gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data <- left_join(p,n,by="Knoll")
+  
+  area_data$Site <- rep(i)
+
+  area_list[[i]]<- area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_cryptic_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+
+```
+
+
+
+
+### forth-root
+
+```{r}
+
+area_list<-list()
+
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- wis_data^0.25 
+  
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2, autotransform = FALSE)   
+  data$Knoll<-as.factor(data$Knoll)
+  ordiplot(ord, type = "n",main = i)
+  #orditorp(ord, label = T, display = "sites",col =data$Knoll,pch = 16)
+  
+  area <-ordihull(ord, groups = data$Knoll, draw = "polygon",alpha = 0.35,col = data$Knoll,label=F)
+  
+  p<-summary(area)
+  p<-as.data.frame(p)
+  p<-p[3,]
+  p<-gather(p,Knoll,area,1:ncol(p))
+
+ 
+ 
+  data_no_j <- data %>% filter(year_month != "2020 a")
+  wis_data_no <- data_no_j[,9:ncol(data_no_j)]
+  wis_data_no<- wis_data_no ^ 0.25
+  
+  ord_n<- metaMDS(wis_data_no,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  data_no_j$Knoll<-as.factor(data_no_j$Knoll)
+  
+  ordiplot(ord_n, type = "n",main = i)
+ # orditorp(ord_n, label = F, display = "sites",col =data_no_j$Knoll, pch = 16)
+  area_nj <- ordihull(ord_n, groups = data_no_j$Knoll,
+                      draw = "polygon",alpha = 0.35,col=data_no_j$Knoll,label=F)
+  
+  n <- summary(area_nj)
+  n <- as.data.frame(n)
+  n <- n[3,]
+  n <- gather(n,Knoll,area_no_june,1:ncol(n))
+
+  area_data <- left_join(p,n,by="Knoll")
+  
+  area_data$Site <- rep(i)
+
+  area_list[[i]]<- area_data
+  
+}
+
+area<-bind_rows(area_list)
+
+area<-area %>% 
+  mutate(Knoll = as.numeric(Knoll),Knoll_id = paste(Site,Knoll,sep = "_")) %>%
+  select(Site,Knoll,Knoll_id,area,area_no_june) %>% arrange(Site,Knoll) %>%
+  mutate("delta_area"= area - area_no_june)
+
+surface<- wide_cryptic_2015 %>% mutate("Knoll_id" = paste(Site,Knoll,sep = "_")) %>% ungroup() %>%  select(Knoll_id,Surface.Area) %>% distinct(Knoll_id,.keep_all = T)
+
+ 
+area<-left_join(area,surface,by="Knoll_id")
+
+ggplot(data = area, aes(x=Surface.Area,y = area_no_june,color =Site))+
+  geom_point()+ylab("Stability")+
+  geom_smooth(method = 'gam',alpha=0.1)
+  
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

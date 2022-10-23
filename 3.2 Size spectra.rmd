@@ -1,0 +1,495 @@
+---
+title: "3.2 Size spectra"
+author: "TG"
+date: "7 2 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+
+```{r}
+#install.packages("devtools")
+#devtools::install_github("andrew-edwards/sizeSpectra")
+library(sizeSpectra)
+
+```
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+
+3) separate all abundance >1 to do biomass per fish estimation
+
+```{r}
+to_sep<-one_observer %>% filter(Abundance>1)
+to_sep$Abundance<-as.integer(to_sep$Abundance)
+sum(to_sep$Abundance)
+
+to_sep <- to_sep %>% uncount(Abundance)
+to_sep<-to_sep %>% tibble::add_column(Abundance=rep(1),.after = 10)
+```
+
+
+```{r}
+individual_data<-one_observer %>% filter(Abundance==1)
+individual_data<-bind_rows(individual_data,to_sep)
+individual_data<-individual_data %>% arrange(Site,Date,Knoll)
+rownames(individual_data)<-1:nrow(individual_data)
+```
+
+4) unify the fish lenghts (to be log2 scale)
+
+```{r}
+individual_data$class <- with(individual_data,(ceiling(log(Length,2))))
+
+
+
+
+individual_data<-individual_data %>%
+  mutate(lenght_class =(2^class)) %>% relocate(lenght_class,.after = 12)
+
+individual_data$midpoint <- ((2^individual_data$class) + (2^(individual_data$class-1)))/2
+
+individual_data<-individual_data %>% relocate(midpoint,.after = 13) %>% relocate(class,.after = 14)
+
+
+```
+
+
+5) calculate the weight (g) per individual
+
+```{r}
+individual_data<- individual_data %>% mutate("true_weight" =  a*Length^b,.after = 14) # to use only when compering years
+individual_data<- individual_data %>% mutate("class_weight" =  a*midpoint^b,.after = 15)# to use only when compering sites
+
+
+```
+
+
+
+
+plot biomass per knoll
+
+```{r}
+biomass_knoll<-individual_data %>% group_by(Site,Knoll,year_month) %>% summarise("total_biomass_class"=sum(class_weight),"total_biomss_true" = sum(true_weight)) %>% filter(Site != "North beach") %>% filter(year_month !="2017 b")
+
+biomass_knoll$Knoll<-as.numeric(biomass_knoll$Knoll)
+
+biomass_knoll<-na.omit(biomass_knoll)
+
+
+ggplot(biomass_knoll, aes(x=Site,y= total_biomss_true/1000 ,fill=Site)) +
+  geom_boxplot()+theme_bw()+ylab("Biomass (kg)")
+
+ggplot(biomass_knoll, aes(x=Site,y= total_biomass_class/1000 ,fill=Site)) +
+  geom_boxplot()+theme_bw()+ylab("Biomass (kg)")+ scale_y_continuous(breaks=seq(0,55,10),limits = c(0,55))
+
+
+ggplot(biomass_knoll, aes(x=Site,y= sum(total_biomss_true)/1000 ,fill=Site)) +
+  geom_boxplot()+theme_bw()+ylab("Biomass (kg)")
+
+```
+
+
+no schools
+
+Pseudanthias squamipinnis (Pseudanthias spp.)
+Neopomacentrus miryae
+Chromis viridis
+Atherinidae
+```{r}
+
+biomass_knoll_noschool<-individual_data %>% 
+  filter(Site != "North beach")%>%
+  filter(year_month!="2017 b") %>% 
+  filter(!Species_2015 %in% c("Pseudanthias spp.",
+                              "Neopomacentrus miryae",
+                              "Chromis viridis",
+                              "Atherinidae")) %>%
+  group_by(Site,Knoll,year_month) %>%
+  summarise("total_biomass_class"=sum(class_weight),
+            "total_biomss_true" = sum(true_weight)) 
+
+biomass_knoll_noschool$Knoll<-as.numeric(biomass_knoll_noschool$Knoll)
+
+biomass_knoll_noschool<-na.omit(biomass_knoll_noschool)
+
+
+ggplot(biomass_knoll_noschool, aes(x=Site,y= total_biomss_true/1000 ,fill=Site)) +
+  geom_boxplot()+theme_bw()+ylab("Biomass (kg)")
+
+ggplot(biomass_knoll_noschool, aes(x=Site,y= total_biomass_class/1000 ,fill=Site)) +
+  geom_boxplot()+theme_bw()+ylab("Biomass (kg)")+ 
+  scale_y_continuous(breaks=seq(0,55,10),limits = c(0,55))
+
+```
+
+Quick check of knolls total area before and after the storm
+
+```{r}
+load("knoll_mdata.rdata")
+
+g_knoll<-knoll_mdata %>% group_by(storm,Site) %>% summarise("total_surface_area"=sum(Surface_Area),                                                           "total_prjected_area"= sum(Projected_area),
+          "n"= n())
+
+ggplot(knoll_mdata,aes(Site,Max_depth,fill = Site))+ 
+    geom_violin()+ geom_dotplot(binaxis='y', stackdir='center', dotsize=0.5,shp = 16)
+
+ggplot(knoll_mdata,aes(Site,Min_depth,fill = Site))+ 
+    geom_violin()+ geom_dotplot(binaxis='y', stackdir='center', dotsize=0.5,shp = 16)
+
+ggplot(knoll_mdata,aes(Site,Hight,fill = Site))+ 
+    geom_violin()+ geom_dotplot(binaxis='y', stackdir='center', dotsize=0.5,shp = 16)
+
+```
+
+
+5) plot size distrabiotions
+
+
+```{r}
+
+weight_boxplot<-ggplot(individual_data, aes(x=Site,y=log(class_weight) ,fill=Site)) +
+  geom_boxplot()+ 
+  stat_summary(fun=mean, geom="point")
+
+weight_boxplot
+
+weight_boxplot_cut<-ggplot(individual_data, aes(x=Site,y=class_weight ,fill=Site)) +
+  geom_boxplot()+ ylim(0,20)
+
+weight_boxplot_cut 
+
+
+```
+
+
+6) add the month to the year and remove the North Beach
+
+
+```{r}
+individual_data$year_month<-ifelse(month(individual_data$Date)>6,
+                                paste(individual_data$Year,"b",sep= " "),
+                                paste(individual_data$Year,"a",sep= " "))
+
+individual_data<-individual_data %>% relocate(year_month,.after = 3) %>% 
+  filter(Site != "North beach")
+```
+
+
+# calculate size spectra by MLE method
+
+
+1. for the test ill take one site at one year
+
+```{r}
+
+NR<-individual_data %>% filter(Site == "NR") %>% filter(Year == 2016) %>% select(Length,midpoint,class_weight,true_weight)
+
+
+Caves<-individual_data %>% filter(Site == "Caves") %>%  select(Length,midpoint,class_weight,true_weight)
+
+Caves<-na.omit(Caves)
+```
+
+
+```{r}
+
+x <- subset(Caves, true_weight >= 3)$true_weight
+
+log.x = log(x)                      # to avoid keep calculating
+sum.log.x = sum(x) 
+xmin = min(x)
+xmax = max(x)
+```
+
+
+
+```{r}
+PL.bMLE = 1/( log(min(x)) - sum.log.x/length(x)) - 1
+
+PLB.minLL <-  nlm(negLL.PLB, p=PL.bMLE, x=x, n=length(x),
+    xmin=xmin, xmax=xmax, sumlogx=sum.log.x)
+
+PLB.bMLE = PLB.minLL$estimate
+
+
+```
+
+
+
+# 95% confidence intervals for MLE method.
+
+PLB.minNegLL = PLB.minLL$minimum
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+xmax<-max(NR$class_weight)
+xmin<-min(NR$class_weight)
+x=rPLB(n=8764,xmin = xmin,xmax = xmax)
+
+
+num.bins = 8  
+
+# Llin method - plotting binned data on log-linear axes then fitting regression.
+
+hLlin = Llin.method(x,
+                    num.bins = num.bins)
+
+gap.barplot.cust(hLlin$counts,
+                 midpoints = hLlin$mids,
+                 breakpoints = hLlin$breaks,
+                 xlim = c(-10,max(hLlin$breaks)+50),ylim = 10000,
+                 col = rep("grey", length(hLlin$counts)),
+                 xaxs = "i",
+                 yaxs = "i"
+                 )
+
+```
+
+
+
+
+
+```{r}
+eight.results = eightMethodsMEE(NR$class_weight, num.bins = num.bins)
+eight.methods.plot(eight.results)
+
+```
+
+
+
+
+## size spectra for each site 
+
+
+```{r}
+for (i in unique(individual_data$Site)) {
+  
+ data<-individual_data %>% filter(Site == i)
+ data$class <- with(data,(ceiling(log(class_weight,2)))) 
+  
+ size_sp_group <- data %>% 
+  group_by(class,year_month) %>% 
+  dplyr::summarize(sum_biomass = sum(class_weight),individuals_in_class= n())
+
+size_sp_group<-na.omit(size_sp_group)
+
+size_sp_group$midpoint <- ((2^size_sp_group$class)+(2^(size_sp_group$class-1)))/2
+size_sp_group$Width <- (2^((size_sp_group$class)))-((2^(size_sp_group$class-1)))
+size_sp_group$corrected_biomass <- with(data = size_sp_group,expr = sum_biomass/Width)
+size_sp_group$midpoint_log<- log10(size_sp_group$midpoint)
+
+filter_size_sp_group<-size_sp_group %>% filter(class>(2))%>% filter(class<(11))
+
+
+print(ggplot(size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+geom_point()+ggtitle(i))
+
+
+print(ggplot(filter_size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+geom_point()+ggtitle(i))
+
+
+
+print(ggplot(size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+geom_smooth(method = lm,se=F)+geom_point()+ggtitle(i))
+
+
+print(ggplot(filter_size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+geom_smooth(method = lm,se=F)+geom_point()+ggtitle(i))
+
+
+  
+}
+```
+## size spectra for each site - all years toghther
+
+
+```{r}
+  
+ data<-individual_data 
+
+data<-data %>% filter(Site != "North beach") %>% mutate(Knoll = as.numeric(Knoll)) %>% drop_na(Knoll) %>% filter(Year != "2017")
+
+data$class <- with(data,(ceiling(log(class_weight,2)))) 
+  
+ size_sp_group <- data %>% 
+  group_by(class,Site) %>% 
+  dplyr::summarize(sum_biomass = sum(class_weight),individuals_in_class= n())
+
+size_sp_group<-na.omit(size_sp_group)
+
+size_sp_group$midpoint <- ((2^size_sp_group$class)+(2^(size_sp_group$class-1)))/2
+size_sp_group$Width <- (2^((size_sp_group$class)))-((2^(size_sp_group$class-1)))
+size_sp_group$corrected_biomass <- with(data = size_sp_group,expr = sum_biomass/Width)
+size_sp_group$midpoint_log<- log10(size_sp_group$midpoint)
+
+filter_size_sp_group<-size_sp_group %>% filter(class>(1))
+
+
+print(ggplot(size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = Site))+geom_point())
+
+
+print(ggplot(filter_size_sp_group,aes(log10(midpoint),log10(corrected_biomass)))+geom_point()+ggtitle(i))
+
+
+
+print(ggplot(size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = Site))+geom_smooth(method = lm,se=T)+geom_point()+ggtitle(i))
+
+
+ggplot(filter_size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = Site))+ylab("log 10 normalized biomass")+
+  xlab("Size class midpoint (g)")+
+    scale_x_continuous(breaks = seq(0,5,by=0.25),labels = function(x) round(10^(x),0))+
+    geom_smooth(method = lm,se=T,alpha = 0.1)+geom_point()+theme_classic()+
+    theme(axis.text.x = element_text(size=16,angle=45,hjust = 1),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        strip.text.x = element_text(size = 16))
+
+
+
+print(ggplot(filter_size_sp_group,aes(midpoint,corrected_biomass,color = Site))+ylab("log 10 normalized biomass")+
+  xlab("log 10 size class midpoint")+
+    geom_smooth(method = lm,se=F)+geom_point())  
+
+```
+## size spectra for each year - all sites toghther
+
+
+```{r}
+  
+data<-individual_data 
+
+data<-data %>% filter(Site != "North beach") %>%
+  mutate(Knoll = as.numeric(Knoll)) %>% drop_na(Knoll)%>% filter(Year != "2017")
+
+data$class <- with(data,(ceiling(log(class_weight,2)))) 
+  
+ size_sp_group <- data %>% 
+  group_by(class,year_month) %>% 
+  dplyr::summarize(sum_biomass = sum(class_weight),individuals_in_class= n())
+
+size_sp_group<-na.omit(size_sp_group)
+
+size_sp_group$midpoint <- ((2^size_sp_group$class)+(2^(size_sp_group$class-1)))/2
+size_sp_group$Width <- (2^((size_sp_group$class)))-((2^(size_sp_group$class-1)))
+size_sp_group$corrected_biomass <- with(data = size_sp_group,expr = sum_biomass/Width)
+size_sp_group$midpoint_log<- log10(size_sp_group$midpoint)
+
+filter_size_sp_group<-size_sp_group %>% filter(class>(1))
+
+
+print(ggplot(size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+geom_point())
+
+
+print(ggplot(filter_size_sp_group,aes(log10(midpoint),log10(corrected_biomass)))+geom_point()+ggtitle(i))
+
+
+
+ggplot(size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+geom_smooth(method = lm,se=T)+geom_point()
+
+
+ggplot(filter_size_sp_group,aes(log10(midpoint),log10(corrected_biomass),color = year_month))+ 
+  ylab("log 10 normalized biomass")+
+  xlab("Size class midpoint (g)")+ labs(color = "Survey")+
+  scale_x_continuous(breaks = seq(0,5,by=0.25),labels = function(x) round(10^(x),0))+
+  geom_smooth(method = lm,se=T,alpha= 0.1)+
+  geom_point()+
+  scale_color_brewer(palette="Dark2")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=16,angle=45,hjust = 1),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16))
+  
+
++ylab("log 10 normalized biomass")+
+  xlab("Size class midpoint (g)")+
+    scale_x_continuous(breaks = seq(0,5,by=0.25),labels = function(x) round(10^(x),0))+
+    geom_smooth(method = lm,se=T,alpha = 0.1)+geom_point()+theme_classic()+
+    theme(axis.text.x = element_text(size=16,angle=45,hjust = 1),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        strip.text.x = element_text(size = 16))
+
+
+  
+
+```

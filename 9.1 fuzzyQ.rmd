@@ -1,0 +1,172 @@
+---
+title: "9.1 fuzzyQ"
+author: "TG"
+date: "29 3 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(mobr)
+library(FuzzyQ)
+
+```
+
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+filter the north beach
+```{r}
+one_observer<-one_observer %>% filter(Site !="North beach")
+```
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+convert to wide data
+
+```{r}
+wide_data<- one_observer %>%
+  group_by(Site,year_month,Species) %>%
+  summarise("aboundance"=sum(Abundance))
+
+wide_data<-wide_data %>% filter(year_month != "2015 b",year_month !="2016 b",year_month !="2017 b")
+
+
+wide_data<-spread(wide_data,Species,aboundance,fill = 0)
+```
+
+
+# FuzzyQ
+
+
+```{r}
+matric_fuzzy<-wide_data[,3:ncol(wide_data)]
+
+fuzzy <- fuzzyq(matric_fuzzy)
+
+AOplot(fuzzy)
+AOplot(fuzzy,log.y = T)
+AOplot(fuzzy,log.y = T,log.x = T)
+
+fuzzy_boot <- fuzzyqBoot(matric_fuzzy)
+fuzzyci <- fuzzyqCI(fuzzy_boot)
+sort<-sortClus(fuzzyci,fuzzy)
+
+#FQAnts <- fuzzyq(antsA, sorting = TRUE)
+# Compute species Commonness Indices of species of 1,000 bootstrap
+# replicates:
+#BS.FQAnts <- fuzzyqBoot (antsA, N = 1e3, level='spp')
+# Compute 95 % confidence intervals, percentile method, default values:
+#BS.sppCI1 <- fuzzyqCI(BS.FQAnts)
+# Plot Commonness Indices and their respective confidence intervals:
+#BS.sppCI1 <- sortClus(BS.sppCI1, FQAnts)
+
+fuzzy_sp_index <- fuzzy$spp
+col.RC <- c("brown2", "turquoise3") # two colors to plot rare and common
+
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+
+# species
+
+plot(spp[, 3], cex.axis = 0.8, xaxt= 'n', ylab = "Commoness index",
+ylim = c(0, max(sort)), xlab = "Species", col = col.RC[spp[, 1] + 1],
+pch = 16, cex = 0.8, las = 1)
+ebar.int <- seq_len(nrow(spp))
+arrows(ebar.int, sort["Lower", ], ebar.int, sort["Upper", ],
+length= 0, col = col.RC[spp[, 1] + 1])
+axis(1, at = ebar.int, labels = rownames(spp), las = 2, cex.axis = 0.6)
+
+
+plot(spp[1:114, 3], cex.axis = 0.8, xaxt= 'n', ylab = "Commoness index",
+ylim = c(0, max(sort)), xlab = "Species", col = col.RC[spp[, 1] + 1],
+pch = 16, cex = 0.8, las = 1)
+ebar.int <- seq_len(114)
+arrows(ebar.int, sort["Lower", ], ebar.int, sort["Upper", ],
+length= 0, col = col.RC[spp[1:114, 1] + 1])
+axis(1, at = ebar.int, labels = rownames(spp[1:114,]), las = 2, cex.axis = 0.6)
+
+plot(spp[115:236, 3], cex.axis = 0.8, xaxt= 'n', ylab = "Commoness index",
+ylim = c(0, max(sort)), xlab = "Species", col = col.RC[spp[, 1] + 1],
+pch = 16, cex = 0.8, las = 1)
+ebar.int <- seq_len(nrow(spp))
+arrows(ebar.int, sort["Lower", ], ebar.int, sort["Upper", ],
+length= 0, col = col.RC[spp[, 1] + 1])
+axis(1, at = ebar.int, labels = rownames(spp), las = 2, cex.axis = 0.6)
+
+
+fuzzy_sp_index<-fuzzy[["spp"]]
+fuzzy_sp_index<-fuzzy_sp_index %>% as_data_frame(fuzzy_sp_index, rownames = "Species")
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+fuzzy_sp_index$cluster<-as.factor(fuzzy_sp_index
+                                  $cluster)
+
+fuzzy_sp_index$cluster<-as.factor(fuzzy_sp_index
+                                  $cluster)
+
+fuzzy_sp_index<-fuzzy_sp_index %>% arrange(sil_width)
+
+ggplot(data = fuzzy_sp_index[,],aes(x= reorder(Species,sil_width),y= sil_width,fill = cluster))+geom_bar(stat = "identity")+ theme(axis.text.x = element_text(angle = 90))
+
+ggplot(data = fuzzy_sp_index[1:30,],aes(x= reorder(Species,sil_width),y= sil_width,fill = cluster))+geom_bar(stat = "identity")+ theme(axis.text.x = element_text(angle = 90))
+
+
+```
+

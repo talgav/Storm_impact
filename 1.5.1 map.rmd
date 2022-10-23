@@ -1,0 +1,148 @@
+---
+title: "1.5.1 map"
+author: "TG"
+date: "18 4 2022"
+output: html_document
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+load("survey_list.Rdata")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+#library(PKPDmisc)
+library(stringr)
+#library(biogeo)
+library(ggmap)
+library(geosphere)
+#library(TSP)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(rgdal)
+library(ggspatial)
+library(raster)
+library(terra)
+
+```
+
+I allready have a world map,  in this scrupt ill try to create:
+
+1. map with the diffrent locations
+2. map of one location with diffrent knolls points
+
+
+# location of sites
+
+```{r}
+knoll<-fish_full_data %>% distinct(knoll_id,.keep_all=T) %>% drop_na(DD_X)
+
+sites<-knoll %>% distinct(Site,.keep_all=T)
+
+write.csv(knoll,"knoll_geo.csv")
+```
+
+
+# read shapefile to r
+
+via sf package
+
+```{r}
+my_regional <- st_read(
+  "Eilat vector data/New Vector Tal QGS84.shp")
+
+my_regional %>% 
+    ggplot() +
+    geom_sf()
+
+
+```
+
+
+plot the map via ggplot
+
+
+29.488296, 34.895584 -  left bottom
+29.532533, 34.960004 - right up
+
+```{r}
+
+
+my_regional %>% 
+    ggplot() +
+    geom_sf() +
+    coord_sf(xlim = c(34.960004,34.895584) , # lon limit
+             ylim = c(29.488296,29.532533),  # lat limits
+             expand = T) +
+  theme_classic()+
+   geom_point(data = sites,
+             aes(x = DD_X, y = DD_Y,group = Site),
+             size = 3)+
+   theme(axis.title = element_blank(),
+     panel.grid.major = element_line(color = gray(.5),
+                                         linetype = "dashed",
+                                         size = 0.5),
+         panel.background = element_rect(fill = "aliceblue"))+
+  annotation_scale(location = "br", width_hint = 0.5)+ annotation_north_arrow(location = "br", which_north = "true", pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in")) 
+
+
+
+#ggsave("reginoal_map_before_edit.pdf",dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\map")
+
+
+
+
+
+```
+
+there is still a lot of work to do in inkscape! this is just stage 1
+
+# stage 2 - one site orthophoto
+
+```{r}
+library(rasterVis)
+
+map <- rast("G:\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\Satellite_Eilat\\Eilat-Ortho-1m_UTM.TIF.TIF")
+
+
+plot(map)
+summary(map)
+
+map_wgs84<-project(map,"EPSG:4326",method = "bilinear")
+
+plot(map_wgs84)
+
+extent(map)
+
+cut<-c(685500,686500,3265000,3266000)
+
+
+zoom_map<-crop(map,cut)
+
+plot(zoom_map)
+
+
+
+coltab <- colortable(map)
+coltab <- coltab[(unique(map))+1]
+
+gplot(map_wgs84, maxpixels=5e5) + 
+  geom_tile(aes(fill = value)) +
+  facet_wrap(~ variable) +
+  scale_fill_gradientn(colours=coltab, guide="none") +
+  coord_equal()
+
+
+
+
+```
+

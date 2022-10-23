@@ -1,0 +1,256 @@
+---
+title: "2.1 species area relationship"
+author: "TG"
+date: "22/11/2020"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+```
+
+# species - area relationship
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+```{r}
+
+sp_area<-one_observer
+
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+
+sp_area<-sp_area %>% filter(Confidence <2)
+```
+
+
+
+
+the mean knoll size in each site
+
+```{r}
+knolls_size<-sp_area %>% distinct(knoll_id,.keep_all = T) %>% select(knoll_id,Site,Knoll,projected_area_ellipse,Surface.Area)
+
+
+porj_area_violin<-ggplot(knolls_size, aes(x=Site,y=projected_area_ellipse ,fill=Site)) +
+  geom_violin()+ 
+  stat_summary(fun=mean, geom="point")+ 
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1,shape=16)+
+  geom_hline(yintercept=mean(knolls_size$projected_area_ellipse,na.rm = T),linetype="dashed",color="red")+
+  theme_bw()
+
+porj_area_violin
+
++geom_boxplot(width=0.1) geom_jitter(shape=16, position=position_jitter(0.2))+
+```
+
+
+## by site:
+
+```{r}
+
+sp_area<-sp_area %>% filter(Status =="C") %>% filter(Site != "North beach")
+
+sp_for_survey<-sp_area %>% group_by(survey_id,Site,Year,Knoll,Surface.Area,projected_area_ellipse,Species) %>% summarise(species_number = sum(Abundance))
+
+
+sp_for_survey_sum<-sp_for_survey %>% group_by(survey_id,Site,Year,Knoll,Surface.Area,projected_area_ellipse) %>% summarise(species_number = n())
+
+sp_for_survey_sum<-na.omit(sp_for_survey_sum)
+```
+
+1. ill keep all the years as repetitions...
+
+*this is for projected area
+
+```{r}
+fit_list<-list()
+loop<-1
+
+for( i in unique(sp_for_survey_sum$Site)){
+ 
+  print(i)
+  
+  site_data <- sp_for_survey_sum %>% 
+    filter(Site == i) 
+
+  fit_list[[loop]]<- sar_loga(site_data[,6:7])
+  
+  loop<-loop+1
+}
+
+plot(fit_list[[1]],ModTitle  = "Caves - log model")
+summary(fit_list[[1]])
+
+plot(fit_list[[2]],ModTitle  = "Katza - log model")
+summary(fit_list[[2]])
+
+plot(fit_list[[3]],ModTitle  = "NR - log model")
+summary(fit_list[[3]])
+
+plot(fit_list[[4]],ModTitle  = "Princess - log model")
+summary(fit_list[[4]])
+
+```
+
+
+2. ill use the mean number of species for each knoll from all the years
+
+
+```{r}
+
+sp_for_survey_mean<-sp_for_survey_sum %>% 
+  group_by(Site,Knoll,Surface.Area,projected_area_ellipse) %>%
+  summarise(species_number = mean(species_number))
+
+fit_list_mean<-list()
+loop<-1
+
+for( i in unique(sp_for_survey_mean$Site)){
+ 
+  print(i)
+  
+  site_data_mean <- sp_for_survey_mean %>% 
+    filter(Site == i) 
+
+  fit_list_mean[[loop]]<- sar_loga(site_data_mean[,4:5])
+  
+  loop<-loop+1
+}
+
+plot(fit_list_mean[[1]],ModTitle  = "Caves - log model")
+summary(fit_list_mean[[1]])
+
+plot(fit_list_mean[[2]],ModTitle  = "Katza - log model")
+summary(fit_list_mean[[2]])
+
+plot(fit_list_mean[[3]],ModTitle  = "NR - log model")
+summary(fit_list_mean[[3]])
+
+plot(fit_list_mean[[4]],ModTitle  = "Princess - log model")
+summary(fit_list_mean[[4]])
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### with 'sp.' species & transient species
+
+```{r}
+
+by_site <- sp_area %>% group_by(survey_id,Site,Knoll,projected_area_ellipse,Surface.Area) %>% distinct(Species,.keep_all = T)
+  
+  
+by_site<-by_site %>% group_by(Site,Knoll,projected_area_ellipse,Surface.Area) %>%
+   summarise(species_number = n()) %>% arrange(Surface.Area)
+  
+by_site<-na.omit(by_site)
+
+by_site$Knoll<-as.numeric(by_site$Knoll)
+
+ggplot(by_site,aes(log(Surface.Area),log(species_number),color=Site))+geom_smooth(method = lm,se=F)+geom_point()
+
+ggplot(by_site,aes(log(projected_area_ellipse),log(species_number),color=Site))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+```
+ 
+test for sars
+```{r}
+for_sars<- sp_area %>%filter(Site=="Princess") %>%  group_by(Site,Knoll,Surface.Area) %>%
+   summarise(species_number = n()) %>% arrange(Surface.Area) 
+
+fit_loga <- sar_loga(data = for_sars[,3:4])
+fit_helg<-sar_heleg(data = for_sars[,3:4])	
+plot(fit_loga)
+summary(fit_loga)
+plot(fit_loga_1)
+```
+
+plot SAR for each site 
+
+* not sure if i need to use mean number of species per knoll (ffrom all the years) or keep them as repeatitions 
+
+```{r}
+
+```
+
+
+### with 'sp.' species & NO transient species
+
+
+
+
+
+### without 'sp.' species
+
+```{r}
+
+```
+
+
+## for each site by year
+
+
+
+```{r}
+
+```
+

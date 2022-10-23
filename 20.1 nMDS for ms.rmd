@@ -1,0 +1,500 @@
+---
+title: "20.1 nMDS for ms"
+author: "TG"
+date: "17 4 2022"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r message=FALSE, warning=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+#library(Rarefy)
+library(rareNMtests)
+library(zetadiv)
+library(FuzzyQ)
+
+```
+
+
+
+```{r}
+pairwise.adonis <- function(x,factors, sim.function = 'vegdist', sim.method = 'bray', p.adjust.m ='bonferroni',reduce=NULL,perm=999)
+{
+ 
+  co <- combn(unique(as.character(factors)),2)
+  pairs <- c()
+  Df <- c()
+  SumsOfSqs <- c()
+  F.Model <- c()
+  R2 <- c()
+  p.value <- c()
+ 
+ 
+  for(elem in 1:ncol(co)){
+    if(inherits(x, 'dist')){
+      x1=as.matrix(x)[factors %in% c(as.character(co[1,elem]),as.character(co[2,elem])),
+                      factors %in% c(as.character(co[1,elem]),as.character(co[2,elem]))]
+      }
+ 
+    else  (
+      if (sim.function == 'daisy'){
+            x1 = daisy(x[factors %in% c(co[1,elem],co[2,elem]),],metric=sim.method)
+        }
+      else{x1 = vegdist(x[factors %in% c(co[1,elem],co[2,elem]),],method=sim.method)}
+    )
+   
+    x2 = data.frame(Fac = factors[factors %in% c(co[1,elem],co[2,elem])])
+   
+    ad <- adonis2(x1 ~ Fac, data = x2,
+                 permutations = perm);
+    pairs <- c(pairs,paste(co[1,elem],'vs',co[2,elem]));
+    Df <- c(Df,ad$Df[1])
+SumsOfSqs <- c(SumsOfSqs,ad$SumOfSqs[1])
+F.Model <- c(F.Model,ad$F[1]);
+    R2 <- c(R2,ad$R2[1]);
+    p.value <- c(p.value,ad$`Pr(>F)`[1])
+  }
+  p.adjusted <- p.adjust(p.value,method=p.adjust.m)
+ 
+  sig = c(rep('',length(p.adjusted)))
+  sig[p.adjusted <= 0.05] <-'.'
+  sig[p.adjusted <= 0.01] <-'*'
+  sig[p.adjusted <= 0.001] <-'**'
+  sig[p.adjusted <= 0.0001] <-'***'
+  pairw.res <- data.frame(pairs,Df,SumsOfSqs,F.Model,R2,p.value,p.adjusted,sig)
+ 
+  if(!is.null(reduce)){
+    pairw.res <- subset (pairw.res, grepl(reduce,pairs))
+    pairw.res$p.adjusted <- p.adjust(pairw.res$p.value,method=p.adjust.m)
+   
+    sig = c(rep('',length(pairw.res$p.adjusted)))
+  sig[pairw.res$p.adjusted <= 0.1] <-'.'
+sig[pairw.res$p.adjusted <= 0.05] <-'*'
+sig[pairw.res$p.adjusted <= 0.01] <-'**'
+sig[pairw.res$p.adjusted <= 0.001] <-'***'
+    pairw.res <- data.frame(pairw.res[,1:7],sig)
+  }
+  class(pairw.res) <- c("pwadonis", "data.frame")
+  return(pairw.res)
+}
+
+#exp_ado_genus = adonis(exp_diss_mat~genus, data = exp_mds_df,                       permutations = 1000); exp_ado_genus$aov.tab  #this is basically a #PERMANOVA analysis
+
+#pairwise_exp_genus = pairwise.adonis(x=exp_diss_mat,factors=exp_mds_df$genus,                                     p.adjust.m='bonferroni')
+
+
+```
+
+color scales definitions 
+
+```{r}
+color_op6 <- c("#20A39E","#23001E","#FFBA49","#EF5B5B")
+  
+save_path<-"C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\nmds"  
+
+```
+
+
+# Data prepartion
+
+```{r}
+load("fish_full_data.rdata")
+select <- dplyr::select
+
+
+
+```
+
+
+
+```{r}
+
+fish_prep<-fish_full_data
+```
+
+
+
+3. remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+fish_prep<-fish_prep %>% filter(!Knoll %in% knolls_to_remove) %>% 
+filter(Site !="North beach")
+
+```
+
+4. keep data from 2018 and on
+
+```{r}
+fish_prep<-fish_prep %>% filter(Year >2017)
+```
+
+
+4. keep only sure identifications
+
+filter confidence = 0
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(Confidence <1)
+
+```
+
+5. keep one observer from each knoll
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(fish_prep$survey_id)) {
+  
+  data <- fish_prep %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+fish_prep <- bind_rows(one_observer)
+
+rm(data,filter_data,one_observer)
+
+# make sure i have the right knolls number
+
+
+knoll_site_year <-fish_prep %>% group_by(Site,year_month) %>% summarise("knoll_number"= n_distinct(knoll_id))
+
+```
+
+
+6. convert year_month to factor
+
+```{r}
+
+fish_prep$year_month<-as.factor(fish_prep$year_month)
+
+```
+
+
+7. keep only the knolls that were surveyed in 2020 spring (storm)
+
+
+
+```{r}
+
+
+
+knolls_2020<-fish_prep %>% filter(Year %in% c("2020")) %>% distinct(knoll_id)
+
+
+
+fish_prep<-fish_prep %>% filter(knoll_id %in% knolls_2020$knoll_id)
+
+```
+
+7. separate to all fish and resident fish only
+
+
+```{r}
+
+all_fish <- fish_prep 
+resident_fish <- fish_prep %>% filter(Status != "T")
+
+```
+
+8. wide data
+
+
+```{r}
+
+wide <- all_fish %>% 
+  select(Site,year_month,Knoll,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+wide <- spread(wide,
+               Species,
+               Abundance,
+               fill = 0)
+
+
+
+
+```
+
+## nmds no transformation:
+
+```{r}
+ 
+  
+  nmds <- wide[,4:ncol(wide)] #only species
+
+  ord<- metaMDS(nmds,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+  print(ord$stress)
+  Year <- factor(wide$year_month)
+  stressplot(ord)
+
+pdf(file = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\nmds\\allsitenmds.pdf",   # The directory you want to save the file in
+    width = 5, # The width of the plot in inches
+    height = 5)
+
+ordiplot(ord, type = "n")
+orditorp(ord, label = T, display = "sites", col = color_op6[Year],pch = 16)
+ordiellipse(ord, groups = wide$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_op6)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_op6, pch = 15,cex=1.5)
+
+dev.off()
+
+
+
+dis <- vegdist(nmds,method="bray")
+
+mod <- betadisper(dis,wide$year_month)
+
+anova(mod)
+
+
+plot(TukeyHSD(mod))
+
+
+plot(mod)
+
+adon.results<-adonis(dis ~  year_month,data = wide, method="bray",perm=999)
+adon.results
+
+pairwise_asonid = pairwise.adonis(x=dis,factors=wide$year_month,
+                                     p.adjust.m='bonferroni')
+str(nmds)
+#ano<-anosim(x = nmds_data, grouping = wide$year_month, permutations = 9999, distance = "bray") 
+#ano
+
+```
+### split by site
+
+```{r}
+
+
+tucky_res<-list()
+
+
+for (i in unique(wide$Site)) {
+  
+  data <- wide  %>% filter(Site == i)
+  
+  nmds_data <- data[,4:ncol(data)] #only species
+
+  ord<- metaMDS(nmds_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+ 
+  print(i)
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  stressplot(ord)
+  
+plot_name<-paste0(save_path,"\\",i,"_no_trans_all_fish",".pdf")
+
+#pdf(file = plot_name,   # The directory you want to save the file in
+#    width = 5,          # The width of the plot in inches
+#    height = 5) 
+
+ordiplot(ord, type = "n",main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_op6[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month,kind = "sd", draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_op6)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_op6, pch = 15,cex=1.5)
+
+#dev.off()
+
+print(i)
+
+dis <- vegdist(nmds_data,method="bray")
+adon.results<-adonis(dis ~  year_month,data = data, method="bray")
+
+pairwise_asonid = pairwise.adonis(x=nmds_data,factors=data$year_month,
+                                     p.adjust.m='bonferroni')
+
+print(pairwise_asonid)
+print(adon.results) 
+
+print("adonis end")
+
+
+
+
+mod <- betadisper(dis,data$year_month)
+
+print(anova(mod))
+
+res<-TukeyHSD(mod)
+res<- as.data.frame(res[["group"]])
+res$sample <- rownames(res)
+
+
+
+tucky_res[[i]]<-res
+
+print(TukeyHSD(mod))
+
+plot(TukeyHSD(mod))
+
+plot(mod)
+  
+  
+}
+
+#openxlsx::write.xlsx(tucky_res, file = 'tucky_res.xlsx')
+```
+
+* adonis - test differences in centroids and data dispersion
+
+https://chrischizinski.github.io/rstats/adonis/
+
+
+### split by site for resident fish only
+
+
+```{r}
+wide_res <- resident_fish %>% 
+  select(Site,year_month,Knoll,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+wide_res <- spread(wide_res,
+               Species,
+               Abundance,
+               fill = 0)
+```
+
+
+```{r}
+
+for (i in unique(wide_res$Site)) {
+  
+  data <- wide_res  %>% filter(Site == i)
+  
+  nmds_data <- data[,4:ncol(data)] #only species
+
+  ord<- metaMDS(nmds_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+ 
+   print(i)
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  stressplot(ord)
+  
+plot_name<-paste0(save_path,"\\",i,"_no_trans_resident_fish",".pdf")
+
+#pdf(file = plot_name,   # The directory you want to save the file in
+#    width = 5,          # The width of the plot in inches
+#    height = 5) 
+
+ordiplot(ord, type = "n",main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_op6[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_op6)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_op6, pch = 15,cex=1.5)
+
+#dev.off()
+
+print(i)
+adon.results<-adonis(nmds_data ~  year_month,data = data, method="bray",perm=999)
+print(adon.results) 
+  
+  
+}
+
+
+```
+
+
+## nmds log transformation:
+
+less weight for abundaces
+
+
+```{r}
+
+
+log_nmds <- decostand(nmds,"log", logbase = 10)
+
+log_ord<- metaMDS(log_nmds,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+log_ord$stress
+stressplot(log_ord)
+
+  
+ordiplot(log_ord, type = "n")
+orditorp(log_ord, label = T, display = "sites", col = color_op6[Year],pch = 16)
+ordiellipse(log_ord,groups = wide$year_month, draw = "polygon",alpha = 0.35,label=F,lty = 1, col = color_op6)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_op6, pch = 15,cex=1.5)
+
+
+  
+ordiplot(log_ord, type = "n")
+orditorp(log_ord, label = T, display = "sites", col = color_op6[Year],pch = 16)
+ordihull(log_ord, groups = wide$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_op6)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_op6, pch = 15,cex=1.5)
+
+adon.log.results<-adonis(log_nmds ~  year_month,data = wide, method="bray",perm=999)
+print(i)
+adon.log.results
+
+
+```
+#for each site
+
+```{r}
+
+for (i in unique(wide$Site)) {
+  
+  data <- wide  %>% filter(Site == i)
+  
+
+  nmds_data <- data[,4:ncol(data)] #only species
+  
+  nmds_log_tran<-decostand(nmds_data,"log", logbase = 10)
+
+  ord<- metaMDS(nmds_log_tran,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  stressplot(ord)
+
+  
+ordiplot(ord, type = "n",main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_op6[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_op6)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_op6, pch = 15,cex=1.5)
+
+print(i)
+adon.results<-adonis(nmds_log_tran ~  year_month,data = data, method="bray",perm=999)
+print(adon.results) 
+  
+  
+}
+```
+

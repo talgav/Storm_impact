@@ -1,0 +1,330 @@
+---
+title: "13.1 species area relationship coral"
+author: "TG"
+date: "9 12 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+```{r}
+load("knoll_mdata.rdata")
+load("coral_cover.rdata")
+load("coral_comm.rdata")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+```{r}
+load("knoll_mdata.rdata")
+load("coral_cover.rdata")
+load("coral_comm.rdata")
+```
+
+
+
+### general steps:
+
+
+3) set the number of species per knoll
+
+
+```{r}
+
+
+only_coral<- coral_comm %>%
+  filter(Category %in% c("Soft Coral","Stony Coral","Corallimorpharia","Zoantharia","Hydrozoa")) %>% filter(year != 2017)
+
+species_knoll<- only_coral %>% group_by(site,knoll,year,storm,Max_depth,Min_depth,Surface_Area) %>% summarise(Species_number = n_distinct(species)) %>%  ungroup() 
+
+```
+
+
+
+```{r}
+str(species_knoll)
+
+species_knoll$storm<-as.factor(species_knoll$storm)
+species_knoll$site<-as.factor(species_knoll$site)
+
+model_list<-list()
+
+
+model_list[[1]]<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +year + Max_depth ,data = species_knoll)
+
+
+model_list[[2]]<-lm(formula = log(Species_number) ~ log(Surface_Area)+site +year + Max_depth ,data = species_knoll)
+
+
+
+model_list[[3]]<-lm(formula = log(Species_number) ~ log(Surface_Area)+site +storm + Max_depth ,data = species_knoll)
+
+
+model_list[[4]]<-lmer(formula = log(Species_number) ~ log(Surface_Area)+(1|site) +storm + Max_depth ,data = species_knoll)
+
+model_list[[5]]<-lmer(formula = log(Species_number) ~ log(Surface_Area)*storm+(1|site)  + Max_depth ,data = species_knoll)
+
+
+model_list[[6]]<-lmer(formula = log(Species_number) ~ log(Surface_Area)*year+(1|site)  + Max_depth ,data = species_knoll)
+
+
+model_list[[7]]<-lmer(formula = log(Species_number) ~ log(Surface_Area)*site +(1|year) + Max_depth ,data = species_knoll)
+
+
+aic_table<-model.sel(model_list)
+
+```
+
+
+```{r}
+model_list_2<-list()
+
+
+model_list_2[[1]]<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +year + Max_depth ,data = species_knoll)
+
+
+model_list_2[[2]]<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +year + Max_depth ,data = species_knoll)
+
+
+model_list_2[[3]]<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +storm+ year + Max_depth +Min_depth ,data = species_knoll)
+
+
+
+model_list_2[[4]]<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +Max_depth +Min_depth ,data = species_knoll)
+
+
+
+model_list_2[[5]]<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +Max_depth +Min_depth+year ,data = species_knoll)
+
+model_list_2[[6]]<-lmer(formula = log(Species_number) ~ log(Surface_Area)*site +Max_depth +Min_depth+(1|year) ,data = species_knoll)
+
+
+aic_table_2<-model.sel(model_list_2)
+```
+
+all the model accept 6 are very much a like...delta aic <3
+
+ill take for now model two and plot the results:
+
+
+```{r}
+sp_ar_model<-model_list_2[[2]]
+
+plot(sp_ar_model)
+```
+
+```{r}
+
+surface_area = rep(seq(from = 1,to = 60,by = 1),16) # Length = 45
+site = rep(unique(species_knoll$site),each = 240) # Length = 4
+year = rep(rep(unique(species_knoll$year),each = 60),4) # Length = 4
+
+predict<-data.frame(Site = site,
+                       Year = year,
+                       Surface_Area= surface_area,
+                       Max_depth = rep(4.6))
+
+
+
+
+predict$Surface_Area_log<-log(predict$Surface_Area)
+
+predict_species<-predict(sp_ar_model,predict,type="response")
+
+predict<-cbind(predict,predict_species)
+
+
+
+predict$species_number<-exp(predict$predict_species)
+
+
+predict$Year<- as.factor(predict$Year)
+
+
+ggplot(data = predict,aes(x= Surface_Area,y = species_number,color= site))+
+  theme_classic()+geom_smooth()+geom_point()
+
+
+ggplot(data = predict,aes(x= Surface_Area,y = species_number,color= site))+
+  theme_classic()+geom_smooth()+
+  geom_point(data = species_knoll,aes(Surface_Area,Species_number,color = site),alpha = 0.3)+
+  ylab("Coral species number")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        strip.text.x = element_text(size = 16))
+
+
+
+
+```
+
+not to present but to ubderstand...ill remobe knoll 17 from the analyses (big knoll very)
+
+
+filter only NR_17 and Katza_19
+
+```{r}
+
+no_17<-only_coral %>% mutate(knoll_number = paste(site,knoll,sep= "_")) %>% filter(knoll_number!= "NR_17",knoll_number!= "NR_11",knoll_number!= "Katza_19") %>% filter(year != 2017)
+
+no_17<- no_17 %>% group_by(site,knoll,year,storm,Max_depth,Min_depth,Surface_Area) %>% summarise(Species_number = n_distinct(species)) %>%  ungroup() 
+
+
+
+
+model_no_17<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +year + Max_depth ,data = no_17)
+
+summary(model_no_17)
+
+surface_area = rep(seq(from = 1,to = 60,by = 1),16) # Length = 45
+site = rep(unique(species_knoll$site),each = 240) # Length = 4
+year = rep(rep(unique(species_knoll$year),each = 60),4) # Length = 4
+
+predict<-data.frame(Site = site,
+                       Year = year,
+                       Surface_Area= surface_area,
+                       Max_depth = rep(4.6))
+
+
+
+
+predict$Surface_Area_log<-log(predict$Surface_Area)
+
+predict_species<-predict(model_no_17,predict,type="response")
+
+predict<-cbind(predict,predict_species)
+
+
+
+predict$species_number<-exp(predict$predict_species)
+
+
+predict$Year<- as.factor(predict$Year)
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+ggplot(data = predict,aes(x= Surface_Area,y = species_number,color= site))+
+  theme_classic()+
+  geom_smooth(size=1.2)+
+  geom_point(data = no_17,aes(Surface_Area,Species_number,color = site),alpha = 0.3)+
+  ylab("Coral species number")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+  scale_color_manual(values = color)
+
+
+
+
+ggplot(data = no_17,aes(Surface_Area,Species_number,color = site),alpha = 0.3)+geom_point()+geom_text(data=no_17,aes(label=knoll),hjust=0, vjust=0)+
+  ylab("Coral species number")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        strip.text.x = element_text(size = 16))
+
+```
+
+only stone corals
+
+```{r}
+only_stone<-only_coral %>% mutate(knoll_number = paste(site,knoll,sep= "_")) %>% filter(knoll_number!= "NR_17",knoll_number!= "NR_11",knoll_number!= "Katza_19") %>% filter(year != 2017) %>%  filter(Category %in% c("Stony Coral","Hydrozoa"))
+
+only_stone<- only_stone %>% group_by(site,knoll,year,storm,Max_depth,Min_depth,Surface_Area) %>% summarise(Species_number = n_distinct(species)) %>%  ungroup() 
+
+
+
+
+model_stone<-lm(formula = log(Species_number) ~ log(Surface_Area)*site +year + Max_depth ,data = only_stone)
+
+summary(model_stone)
+
+surface_area = rep(seq(from = 1,to = 60,by = 1),16) # Length = 45
+site = rep(unique(species_knoll$site),each = 240) # Length = 4
+year = rep(rep(unique(species_knoll$year),each = 60),4) # Length = 4
+
+predict<-data.frame(Site = site,
+                       Year = year,
+                       Surface_Area= surface_area,
+                       Max_depth = rep(4.6))
+
+
+
+
+predict$Surface_Area_log<-log(predict$Surface_Area)
+
+predict_species<-predict(model_stone,predict,type="response")
+
+predict<-cbind(predict,predict_species)
+
+
+
+predict$species_number<-exp(predict$predict_species)
+
+
+predict$Year<- as.factor(predict$Year)
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+ggplot(data = predict,aes(x= Surface_Area,y = species_number,color= site))+
+  theme_classic()+
+  geom_smooth(size=1.2,se = T)+
+  geom_point(data = only_stone,aes(Surface_Area,Species_number,color = site),alpha = 0.3)+
+  ylab("Stone coral species")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+  scale_color_manual(values = color)
+
+
+#ggsave("stone_coral_sp_area.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+```
+

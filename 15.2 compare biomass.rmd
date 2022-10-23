@@ -1,0 +1,344 @@
+---
+title: "15.2 compare biomass"
+author: "TG"
+date: "25 12 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(Rarefy)
+library(rareNMtests)
+```
+
+
+
+```{r}
+load("fish_full_data.rdata")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+fish_k<-c("#669bbc","#336683","#1a4b66","#003049","#ed3140","#c1121f","#710912")
+
+```
+
+1) set one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+
+
+3) filter the north beach and iregular knolls
+```{r}
+one_observer<-one_observer %>%
+  filter(Site !="North beach",
+         ! Knoll %in% c("Tamar","South bridge reserve","south bridge reserve",
+                        "North bridge reserve","north bridge reserve"))
+                                      
+```
+
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+4) add the biomass for each line
+
+ unify the fish lenghts (to be log2 scale)
+
+```{r}
+one_observer$class <- with(one_observer,(ceiling(log(Length,2))))
+
+
+one_observer<-one_observer %>%
+  mutate(lenght_class =(2^class)) %>% relocate(lenght_class,.after = 12)
+
+one_observer$midpoint <- ((2^one_observer$class) + (2^(one_observer$class-1)))/2
+
+one_observer<-one_observer %>% relocate(midpoint,.after = 13) %>% relocate(class,.after = 14)
+
+
+```
+
+```{r}
+one_observer<- one_observer %>% mutate("true_weight_ind" =  a*Length^b,.after = 14) # to use only when compering years
+
+one_observer<- one_observer %>% mutate("class_weight_ind" =  a*midpoint^b,.after = 15)# to use only when compering sites
+
+
+# the weight for all ind in the same line
+
+one_observer<-one_observer %>%
+  mutate("true_weight_total"=true_weight_ind*Abundance,
+         "class_weight_total" = class_weight_ind*Abundance)
+```
+
+```{r}
+one_observer_no_17<-one_observer %>% filter(Year != "2017")
+```
+
+
+```{r}
+ggplot(one_observer_no_17, aes(x= log(class_weight_total), fill=year_month)) + geom_density(alpha =0.8)+
+  ggtitle("Fish biomass")+ xlab("log10(weight (g))")+
+  ylab("Density")+ theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_fill_manual(values= fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))+
+  facet_grid(year_month ~ .)
+```
+
+lets do this only for the knolls that were survey after the storm
+
+
+```{r}
+after_storm_knoll<- one_observer_no_17 %>% filter(year_month =="2020 a") %>% distinct(knoll_id)
+
+after_knolls<-one_observer_no_17 %>% filter(knoll_id %in% after_storm_knoll$knoll_id) %>% filter(year_month != "2015 b",year_month != "2016 b") %>% filter(!Species_2015 %in% c("Pseudanthias spp.","Chromis viridis","Neopomacentrus miryae") )
+
+ggplot(after_knolls, aes(x= log(true_weight_total/1000), fill=year_month)) + geom_density(alpha =0.8)+
+  ggtitle("Fish biomass")+ xlab("Log(Weight (kg))")+
+  ylab("Density")+ theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_fill_manual(values= fish_all[3:7],
+                           name = "Year",
+                           labels = c("Fall 2018",
+                                      "Spring 2020",
+                                       "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+ggsave("fish_biomass_dist_year.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+# + facet_grid(year_month ~ .)
+
+
+
+
+ggplot(after_knolls, aes(x= log(Length), fill=year_month)) + geom_freqpoly(alpha =0.4)+
+  ggtitle("Fish biomass")+ xlab("lenght (cm)")+
+  ylab("Density")+ theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_fill_manual(values= fish_all[3:7],
+                           name = "Year",
+                           labels = c("Fall 2018",
+                                      "Spring 2020",
+                                       "Fall 2020" ,
+                                      "Spring 2021"))+
+  facet_grid(year_month ~ .)
+```
+
+biomass per knoll
+
+```{r}
+one_observer_no_17 %>%filter(Year !="2015",Year !="2016") %>% filter(!Species_2015 %in% c("Pseudanthias spp.","Chromis viridis","Neopomacentrus miryae") ) %>% group_by(Site,knoll_id) %>% summarise("weight_knoll"=sum(true_weight_total)) %>% 
+ggplot(aes(Site,weight_knoll/1000,fill=Site))+geom_boxplot()+ggtitle("Fish biomass")+
+  ylab("Biomass (kg/knoll)")+ theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+  scale_fill_manual(values = color)
+
+ggsave("fish_biomass_perknoll_site.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+one_observer_no_17 %>%
+  filter(Year !="2015",Year !="2016") %>%
+  filter(!Species_2015 %in% c("Pseudanthias spp.","Chromis viridis","Neopomacentrus miryae")) %>%      group_by(year_month,knoll_id) %>% 
+  summarise("weight_knoll"=sum(true_weight_total)) %>% 
+ggplot(aes(year_month,weight_knoll/1000,fill=year_month))+geom_boxplot()+ggtitle("Fish biomass")+
+  ylab("Biomass (kg/knoll)")+ theme_bw()+xlab("Year")+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+  scale_fill_manual(values = c(fish_k[2],fish_k[5:7]),
+                    name = "Year",labels = c("Fall 2018",
+                                             "Spring 2020",
+                                             "Fall 2020",
+                                             "Spring 2021"))+
+  scale_x_discrete(labels = c("Fall 2018",
+                                             "Spring 2020",
+                                             "Fall 2020",
+                                             "Spring 2021"))
+
+ggsave("fish_biomass_perknoll_year.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+```
+
+
+```{r}
+biomass_m<-one_observer_no_17 %>%filter(Year !="2015",Year !="2016") %>% filter(!Species_2015 %in% c("Pseudanthias spp.","Chromis viridis","Neopomacentrus miryae")) %>% 
+  group_by(Site,year_month,Knoll,Surface_Area) %>% 
+  summarise("weight_knoll"=sum(true_weight_total,na.rm = T)) %>% mutate("biomass_m"=weight_knoll/Surface_Area)
+
+
+biomass_m_site<-biomass_m %>% group_by(Site) %>% summarise("mean_biomass"=mean(biomass_m),
+                                                           "se"=std.error(biomass_m),
+                                                           "n"=n())
+
+
+ggplot(data = biomass_m_site,aes(x=Site,y=mean_biomass,fill = Site))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=mean_biomass-se,ymax=mean_biomass+se),width =0.1)+
+  scale_fill_manual(values = color)+
+  geom_text(aes(label = n,y=20), size = 7)+  
+  xlab("Site")+ ggtitle("Fish biomass (no schools)")+
+  ylab(bquote('Mean fish biomass '(g/m^2)))+
+  theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))
+
+ggsave("fish_biomass_per_m_site.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+biomass_m_year<-biomass_m %>% group_by(year_month) %>% summarise("mean_biomass"=mean(biomass_m),
+                                                           "se"=std.error(biomass_m),
+                                                           "n"=n())
+
+
+ggplot(data = biomass_m_year,aes(x=year_month,y=mean_biomass,fill = year_month))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=mean_biomass-se,ymax=mean_biomass+se),width =0.1)+
+  geom_text(aes(label = n,y=20), size = 7,color= "white")+  
+  xlab("Year")+ ggtitle("Fish biomass (no schools)")+
+  ylab(bquote('Mean fish biomass '(g/m^2)))+
+  theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+  scale_fill_manual(values= fish_all[3:6],
+                           name = "Year",
+                           labels = c("Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))+
+  scale_x_discrete(labels = c("Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+ggsave("fish_biomass_per_m_year.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+```
+
+
+
+```{r}
+total_biomass_storm <- after_knolls %>%
+  filter(!Species_2015 %in% c("Pseudanthias spp.","Chromis viridis","Neopomacentrus miryae") ) %>%  group_by(Site,year_month) %>%  summarise("total_biomass"=sum(true_weight_total,na.rm = T)) %>% filter(year_month != "2015 b",year_month != "2016 b") 
+
+
+ggplot(data = total_biomass_storm,aes(x=Site,y=total_biomass/1000,color=year_month))+geom_point(size = 7,alpha = 0.8)+ggtitle("Fish biomass")+
+  ylab("Total biomass (kg)")+ theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values= fish_all[3:7],
+                           name = "Year",
+                           labels = c("Fall 2018",
+                                      "Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+ggsave("fish_biomass_point_year.png" , width = 10, height = 8, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+```
+
+
+
+
+
+
+
+
+
+

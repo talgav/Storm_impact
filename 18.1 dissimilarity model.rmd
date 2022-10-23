@@ -1,0 +1,549 @@
+---
+title: "18.1 dissimilarity model"
+author: "TG"
+date: "5 4 2022"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+
+```{r message=FALSE, warning=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(Rarefy)
+library(rareNMtests)
+library(zetadiv)
+
+```
+
+color scales definitions 
+
+```{r}
+color_op6 <- c("#20A39E","#23001E","#FFBA49","#EF5B5B")
+```
+
+
+# Data prepartion
+
+```{r}
+load("fish_full_data.rdata")
+load("coral_comm.rdata")
+select <- dplyr::select
+```
+
+## general steps:
+
+```{r}
+breakage <- read.csv("C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\data\\breakage 2020 - 2018.csv")
+
+fish_prep<-fish_full_data
+
+```
+
+
+
+1. final cleaning stages
+
+(to be removed to the data prep script asap)
+
+change mistakes in the confidence level of survey "Princess_6_2020-10-13" 
+
+```{r}
+fish_prep$Confidence<-ifelse(fish_prep$survey_id == "Princess_6_2020-10-13" & fish_prep$Species != "Gobiodon reticulatus",0,fish_prep$Confidence)
+```
+
+change the status of Pseudanthias squamipinnis to C here but i need to do it in the data prep script
+
+```{r}
+
+fish_prep$Status<-ifelse(fish_prep$Species %in% c("Pseudanthias squamipinnis",
+                                                  "Neopomacentrus miryae",
+                                                  "Chromis pembae",
+                                                  "Chromis weberi"),"C",fish_prep$Status)
+
+```
+
+2. keep only 2018 and 2020 spring (storm)
+
+```{r}
+
+fish_prep<- fish_prep %>% filter(year_month %in% c("2018 b","2020 a"))
+
+```
+
+
+
+3. remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+fish_prep<-fish_prep %>% filter(!Knoll %in% knolls_to_remove) %>% 
+filter(Site !="North beach")
+
+```
+
+4. keep only sure identifications
+
+filter confidence = 0
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(Confidence <1)
+
+```
+
+5. keep one observer from each knoll
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(fish_prep$survey_id)) {
+  
+  data <- fish_prep %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+fish_prep <- bind_rows(one_observer)
+
+rm(data,filter_data,one_observer)
+
+# make sure i have the right knolls number
+
+
+knoll_site_year <-fish_prep %>% group_by(Site,year_month) %>% summarise("knoll_number"= n_distinct(knoll_id))
+
+```
+
+
+6. convert year_month to factor
+
+```{r}
+
+fish_prep$year_month<-as.factor(fish_prep$year_month)
+
+```
+
+
+7. keep only the knolls that were surveyd in both years
+
+```{r}
+
+knolls_2018<-fish_prep %>% filter(Year %in% c("2018")) %>% distinct(knoll_id)
+
+knolls_2020<-fish_prep %>% filter(Year %in% c("2020")) %>% distinct(knoll_id)
+
+united_knolls<-intersect(knolls_2018,knolls_2020)
+
+fish_prep<-fish_prep %>% filter(knoll_id %in% united_knolls$knoll_id)
+
+```
+
+8. separate to all fish and resident fish only
+
+
+```{r}
+
+all_fish <- fish_prep 
+resident_fish <- fish_prep %>% filter(Status != "T")
+
+```
+
+
+10. convert to wide format
+
+
+all fish
+
+```{r}
+
+all_fish <- all_fish %>% 
+  select(Site,year_month,Knoll,knoll_id,Surface_Area,coral_cover,Max_depth,Mean_Complexity,Hight,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,knoll_id,Surface_Area,coral_cover,Mean_Complexity,Max_depth,Hight,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+all_fish <- spread(all_fish,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+
+
+```
+
+resident fish
+
+```{r}
+resident_fish <- resident_fish %>% 
+  select(Site,year_month,Knoll,knoll_id,Surface_Area,coral_cover,Mean_Complexity,Max_depth,Hight,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,knoll_id,Surface_Area,coral_cover,Mean_Complexity,Max_depth,Hight,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+resident_fish <- spread(resident_fish,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+
+
+```
+
+
+Im removing knoll_id 'Caves_5' for now because there is no species in 2020
+
+```{r}
+resident_fish<-resident_fish %>% filter(knoll_id != "Caves_5")
+```
+
+
+
+# calculate the disimilarity by Bray curtis index
+
+
+Add the breakage data
+
+
+use only the 2020 breakage data as variable but check the correlation between 2018 and 2020
+```{r}
+
+
+breakage<-breakage %>% select(1:5) %>% mutate("precentage"=Broken*100/Total)
+
+breakage_wide <- breakage %>%
+  mutate(knoll_id = paste(Site,Knoll,sep="_")) %>%
+  select(knoll_id,Year,Site,precentage) %>% 
+  filter(knoll_id != "NR_NA")
+
+breakage_wide <- spread(breakage_wide,Year,precentage)
+breakage_wide<- na.omit(breakage_wide)
+
+
+ggplot(data = breakage_wide,aes(x=breakage_wide$`2018`,y=breakage_wide$`2020`,color = Site))+ geom_point()+geom_smooth(method = lm)
+
+
+breakage_2020<-breakage %>% filter(Year =="2020") %>% na.omit() %>% mutate(knoll_id = paste(Site,Knoll,sep="_")) %>% select(knoll_id,precentage)
+```
+
+no correlation between 2018 and 2020 in broken coloneys so i can use only 2020 as my variable
+
+
+## add coral richness data
+
+```{r}
+stone <- coral_comm %>% 
+  filter(Category %in% c("Hydrozoa","Stony Coral"),
+         year %in% c("2018","2020")) %>% 
+  select(1:7) %>% 
+  mutate(knoll_id = paste(site,knoll,sep="_")) %>% 
+  filter(knoll_id %in% united_knolls$knoll_id) %>% 
+  group_by(year,knoll_id) %>% summarise(c_richness =n_distinct(species)) %>% group_by(knoll_id) %>% 
+  summarise(mean_c_rich = round(mean(c_richness),0))
+
+
+```
+
+
+
+#  only resident fish species
+
+
+
+```{r}
+
+bray_list_resid<-list()
+
+
+for (i in unique(resident_fish$knoll_id)) {
+  
+  one_knoll <- resident_fish %>% filter(knoll_id == i) # compare one knoll
+  
+  species <-one_knoll[,10:ncol(one_knoll)] # species matrix
+  
+  dissimilarity <- vegdist(species,method = "bray") # calc dissimilarity
+  
+  # save to data frame
+  
+  bray <- data.frame("knoll_id" = i,
+                     "dissimilarity" = as.numeric(dissimilarity)) 
+  
+  # save dataframe to list
+  
+  bray_list_resid[[i]] <- bray
+  
+}
+
+bray_diss_resid<-bind_rows(bray_list_resid)
+
+```
+
+connect the dissimilarity to the data
+
+```{r}
+resident_fish <- resident_fish %>% 
+  select(Site,year_month,Knoll,knoll_id,Surface_Area,coral_cover,Max_depth,Hight)
+
+variables_resi<- resident_fish %>% 
+  group_by(Site,knoll_id) %>%
+  summarise("mean_Surface_Area"=mean(Surface_Area),
+            "mean_coral_cover"=mean(coral_cover),
+            "mean_Complexity"=mean(Mean_Complexity),
+            "mean_Max_depth"=mean(Max_depth),
+            "mean_Hight"=mean(Hight))
+
+variables_resi$category_depth<-ifelse(variables_resi$mean_Max_depth>6,"deep","shallow")
+
+
+bray_diss_resid<-left_join(variables_resi,bray_diss_resid)
+
+
+```
+
+# Add the breakage data and the coral richness
+
+
+
+```{r}
+bray_diss_resid<-left_join(bray_diss_resid,breakage_2020)
+bray_diss_resid<-left_join(bray_diss_resid,stone)
+```
+
+
+filter knolls without breakage data (or any other na)
+
+
+```{r}
+
+bray_diss_resid_small <- bray_diss_resid %>% na.omit()
+  
+```
+
+
+some plots of the variables
+
+```{r}
+ggplot(data = bray_diss_resid,aes(x=log(mean_Surface_Area),y=dissimilarity))+geom_point()
+ggplot(data = bray_diss_resid,aes(x=mean_Max_depth,y=dissimilarity))+geom_point()
+ggplot(data = bray_diss_resid, aes(x=log(mean_Surface_Area),y=mean_Complexity))+geom_point()
+ggplot(data = bray_diss_resid,aes(x=Site,y=dissimilarity,color=Site,label=knoll_id))+geom_point()+geom_text()
+
+ggplot(data = bray_diss_resid,aes(x=Site,y=precentage,color = dissimilarity))+geom_point()
+
+ggplot(data = bray_diss_resid,aes(precentage,dissimilarity,color = Site))+geom_point()
+
+ggplot(data = bray_diss_resid,aes(x=mean_c_rich,y=dissimilarity,color = Site,label=knoll_id))+geom_point()+geom_text()
+
+
+ggplot(data = bray_diss_resid,aes(x=mean_c_rich,y=mean_Surface_Area,color = dissimilarity,label=knoll_id))+geom_point()+geom_text()
+
+```
+
+
+some plots of the variables without the NA rows
+
+```{r}
+ggplot(data = bray_diss_resid_small,aes(x=log(mean_Surface_Area),y=dissimilarity))+geom_point()
+ggplot(data = bray_diss_resid_small,aes(x=mean_Max_depth,y=dissimilarity))+geom_point()
+ggplot(data = bray_diss_resid_small, aes(x=log(mean_Surface_Area),y=mean_Complexity))+geom_point()
+ggplot(data = bray_diss_resid_small,aes(x=Site,y=dissimilarity,color=Site,label=knoll_id))+geom_point()+geom_text()
+
+ggplot(data = bray_diss_resid_small,aes(x=Site,y=precentage,color = dissimilarity))+geom_point()
+
+ggplot(data = bray_diss_resid_small,aes(precentage,dissimilarity,color = Site))+geom_point()
+```
+
+## models
+
+###  global models
+
+1. without interaction
+2. with interaction
+
+im using only the shallow knolls (<6m)
+```{r}
+#1
+
+resident_diss<-lm(formula =  dissimilarity ~ Site + mean_Surface_Area +mean_coral_cover + mean_Complexity + precentage + category_depth + mean_c_rich ,data = bray_diss_resid_small, na.action = "na.fail")
+
+summary(resident_diss)
+plot(resident_diss)
+
+
+
+#2
+
+resident_diss_interaction<-lm(formula =  dissimilarity ~ (Site + mean_Surface_Area +mean_coral_cover + mean_Complexity + precentage+ category_depth + mean_c_rich)^2 ,data = bray_diss_resid_small, na.action = "na.fail")
+
+summary(resident_diss_interaction)
+plot(resident_diss_interaction)
+
+
+```
+
+dreage
+
+
+```{r}
+
+dredge_table_resident<-dredge(global.model = resident_diss)
+
+dredge_interaction_table_resident<-dredge(global.model = resident_diss_interaction)
+
+```
+
+
+```{r}
+
+
+
+
+```
+
+
+### all fish species
+
+- no data standardization
+
+
+
+```{r}
+
+bray_list<-list()
+
+
+for (i in unique(all_fish$knoll_id)) {
+  
+  one_knoll <- all_fish %>% filter(knoll_id == i) # compare one knoll
+  
+  species <-one_knoll[,10:ncol(one_knoll)] # species matrix
+  
+  dissimilarity <- vegdist(species,method = "bray") # calc dissimilarity
+  
+  # save to data frame
+  
+  bray <- data.frame("knoll_id" = i,
+                     "dissimilarity" = as.numeric(dissimilarity)) 
+  
+  # save dataframe to list
+  
+  bray_list[[i]] <- bray
+  
+}
+
+bray_diss<-bind_rows(bray_list)
+
+```
+
+connect the dissimilarity to the data
+
+```{r}
+all_fish <- all_fish %>% 
+  select(Site,year_month,Knoll,knoll_id,Surface_Area,coral_cover,Max_depth,Hight)
+
+variables<- all_fish %>% 
+  group_by(Site,knoll_id) %>%
+  summarise("mean_Surface_Area"=mean(Surface_Area),
+            "mean_coral_cover"=mean(coral_cover),
+            "mean_Complexity"=mean(Mean_Complexity),
+            "mean_Max_depth"=mean(Max_depth),
+            "mean_Hight"=mean(Hight))
+
+variables$category_depth<-ifelse(variables$mean_Max_depth>6,"deep","shallow")
+
+
+bray_diss<-left_join(variables,bray_diss)
+
+
+```
+
+
+
+```{r}
+bray_diss<-left_join(bray_diss,breakage_2020)
+```
+
+
+
+
+some plots of the variables
+
+```{r}
+ggplot(data = bray_diss,aes(x=log(mean_Surface_Area),y=dissimilarity,color = Site))+geom_point()
+ggplot(data = bray_diss,aes(mean_Hight,dissimilarity,color = Site))+geom_point()
+ggplot(data = bray_diss,aes(mean_Hight,log(mean_Surface_Area),color = Site))+geom_point()
+
+
+ggplot(data = bray_diss,aes(x=mean_Max_depth,y=dissimilarity))+geom_point()
+ggplot(data = bray_diss, aes(x=log(mean_Surface_Area),y=mean_Complexity))+geom_point()
+ggplot(data = bray_diss,aes(x=Site,y=dissimilarity,color=Site,label=knoll_id))+geom_point()+geom_text()
+
+ggplot(data = bray_diss,aes(x=Site,y=dissimilarity,color=precentage))+geom_point()
+
+ggplot(data = bray_diss,aes(precentage,dissimilarity,color = Site))+geom_point()
+
+
+```
+
+
+```{r}
+
+bray_diss_small <- bray_diss %>% filter(category_depth=="shallow") %>% na.omit()
+  
+```
+
+
+```{r}
+diss_interaction<-lm(formula =  dissimilarity ~ (Site + mean_Surface_Area +mean_coral_cover + mean_Complexity + precentage+ mean_Max_depth)^2 ,data = bray_diss_small, na.action = "na.fail")
+
+diss<-lm(formula =  dissimilarity ~ Site + mean_Surface_Area +mean_coral_cover + mean_Complexity + precentage+mean_Max_depth ,data = bray_diss_small, na.action = "na.fail")
+
+diss_no_site<-lm(formula =  dissimilarity ~  mean_Surface_Area +mean_coral_cover + mean_Complexity + precentage+mean_Max_depth ,data = bray_diss_small, na.action = "na.fail")
+
+
+dredge_table<-dredge(global.model = diss)
+dredge_table_no_site<-dredge(global.model = diss_no_site)
+dredge_interaction_table<-dredge(global.model = diss_interaction)
+
+
+
+
+
+#summary(diss)
+#plot(diss)
+
+#diss_dredge <- lm(formula =  dissimilarity ~ Site + mean_Surface_Area ,data = bray_diss_small, na.action = "na.fail")
+
+
+#summary(diss_dredge)
+
+
+
+```

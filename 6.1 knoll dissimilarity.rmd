@@ -1,0 +1,295 @@
+---
+title: "6.1 knoll dissimilarity"
+author: "TG"
+date: "16 2 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+3) filter the north beach
+```{r}
+one_observer<-one_observer %>% filter(Site !="North beach")
+```
+
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+
+```{r}
+all_fish_2015 <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,knoll_id,Observer,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_2015<-spread(all_fish_2015,Species_2015,aboundance,fill = 0)
+```
+
+
+
+
+```{r}
+
+to_filter<-c("2015 b_2016 b",
+             "2016 b_2018 b",
+             "2016 b_2017 b",
+             "2017 b_2018 b",
+             "2018 b_2020 a",
+             "2020 a_2020 b")
+
+jacc_list<-list()
+loop<-1
+
+for (i in unique(wide_2015$knoll_id)){
+  
+one_knoll<-wide_2015 %>% filter(knoll_id == i )
+
+one_knoll_matric<-one_knoll[,11:ncol(one_knoll)]
+
+jacc<-vegdist(one_knoll_matric,method = "jaccard")
+
+jacc<-as.matrix(jacc)
+
+rownames(jacc)<-one_knoll$year_month
+colnames(jacc)<-one_knoll$year_month
+
+
+jacc <- melt(jacc)[melt(upper.tri(jacc))$value,]
+names(jacc) <- c("c1", "c2", "distance")
+jacc<-jacc %>%  unite("compare",1:2)
+jacc<-jacc %>% mutate(knoll_id = rep(i)) %>% relocate(knoll_id,.before = 2)
+jacc<-jacc %>% mutate(Site = rep(one_knoll$Site[1]), Surface_Area = rep(one_knoll$Surface_Area[1]))
+jacc<-jacc %>% filter(compare %in% to_filter)
+  
+jacc_list[[loop]]<-jacc
+loop<-loop+1
+}
+
+
+jacc<-bind_rows(jacc_list)
+
+jacc$compare<-as.factor(jacc$compare)
+levels(jacc$compare)
+
+ggplot(data = jacc,aes(x=Surface_Area,y=distance,color = knoll_id,shape = compare))+geom_point()+geom_line()
+```
+
+```{r}
+to_filter<-as.data.frame(to_filter)
+to_filter$to_filter<-as.factor(to_filter$to_filter)
+to_filter$numeric<-c(1,3,2,4,5,6)
+
+to_filter<-to_filter %>% rename("compare" = to_filter)
+
+jacc<-left_join(jacc,to_filter,by="compare")
+
+```
+
+
+```{r}
+for (i in unique(jacc$Site)) {
+  
+  data<- jacc %>% filter(Site ==i)
+  
+  if(i != "Katza"){
+  print(ggplot(data = data,aes(x=Surface.Area,y=distance,color = knoll_id,shape = compare))+
+          geom_point(size = 4)+
+          geom_line()) } else {
+            
+            data <- data %>% filter(compare !="2016 b_2018 b")
+       print(ggplot(data = data,aes(x=Surface.Area,y=distance,color = knoll_id,shape = compare))+
+          geom_point(size = 4)+
+          geom_line())
+    }
+      
+
+  
+}
+
+
+
+```
+
+
+
+```{r}
+to_filter<-c("2015 b_2016 b",
+             "2016 b_2018 b",
+             "2016 b_2017 b",
+             "2017 b_2018 b",
+             "2018 b_2020 a",
+             "2018 b_2020 b",
+             "2020 a_2020 b")
+
+to_filter_katza <-c("2015 b_2016 b",
+             "2016 b_2017 b",
+             "2017 b_2018 b",
+             "2018 b_2020 a",
+             "2018 b_2020 b",
+             "2020 a_2020 b")
+bray_list<-list()
+loop<-1
+
+for (i in unique(wide_2015$knoll_id)){
+  
+one_knoll<-wide_2015 %>% filter(knoll_id == i )
+
+one_knoll_matric <- one_knoll[,11:ncol(one_knoll)]
+
+one_knoll_matric <- one_knoll_matric^0.25 # forth-root transformation 
+
+bray<-vegdist(one_knoll_matric,method = "bray")
+
+bray<-as.matrix(bray)
+
+rownames(bray)<-one_knoll$year_month
+colnames(bray)<-one_knoll$year_month
+
+s<- head(head(one_knoll$Site,1))
+
+bray <- melt(bray)[melt(upper.tri(bray))$value,]
+names(bray) <- c("c1", "c2", "distance")
+bray<-bray %>%  unite("compare",1:2)
+bray<-bray %>% mutate(knoll_id = rep(i)) %>% relocate(knoll_id,.before = 2)
+bray<-bray %>% mutate(Site = rep(one_knoll$Site[1]), Surface.Area = rep(one_knoll$Surface.Area[1]))
+
+if (s == "Katza"){
+  bray<-bray %>% filter(compare %in% to_filter_katza) 
+} else {
+bray<-bray %>% filter(compare %in% to_filter) 
+}
+
+
+
+
+bray_list[[loop]]<-bray
+loop<-loop+1
+
+}
+
+bray<-bind_rows(bray_list)
+
+
+
+```
+
+
+put in nMDS
+
+* first ill try it for one site
+
+```{r}
+
+caves<-bray %>% filter(Site== "Caves")
+
+wide_cave<-spread(caves,compare,distance,fill = 0)
+ord<- metaMDS(caves[,3],distance = "bray" ,trace = F,k=2,autotransform = FALSE)
+
+ordiplot(ord, type = "n")
+ordihull(ord, groups = wide_cave$knoll_id)
+
+
+
+ordiplot(ord, type = "n")
+orditorp(ord, label = T, display = "species",pch = 16)
+ordihull(ord, groups = wide_cave$knoll_id, draw = "polygon",alpha = 0.35,label=F)
+
+ordiplot(ord, type = "n")
+ordihull(ord, groups=wide_cave$knoll_id, display = "sites", draw = "polygon")
+
+plot(ord, type="n", scaling = 3)
+pl <- ordihull(ord, wide_cave$knoll_id, scaling = 3, label = TRUE)
+summ<-summary(pl)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,948 @@
+---
+title: "4.2 community structure"
+author: "TG"
+date: "2 2 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+
+---
+
+
+```{r include=FALSE}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r include=FALSE}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r include=FALSE}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+3) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+create wide data for:
+
+1. species by 2015 categories - wide_2015 (for each site comparison)
+
+2. species by each year resolution (i.e Species column) - wide_data (for each year comparison)
+
+3. no transient fish for 2015 division - wide_cryptic_2015
+
+4. no transient fish for full species division - wide_cryptic
+
+
+### 1. wide_2015
+
+```{r include=FALSE}
+all_fish_2015 <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_2015<-spread(all_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_2015<-na.omit(wide_2015)
+
+rm(all_fish_2015)
+```
+
+### 2. wide data
+
+
+```{r include=FALSE}
+all_fish <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data<-spread(all_fish,Species,aboundance,fill = 0)
+
+wide_data<-na.omit(wide_data)
+
+rm(all_fish)
+```
+
+
+### 3.wide_cryptic_2015
+
+
+```{r include=FALSE}
+cryp_fish_2015 <- one_observer %>% filter(Status != "T") %>% 
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_cryptic_2015<-spread(cryp_fish_2015,Species_2015,aboundance,fill = 0)
+
+wide_cryptic_2015<-na.omit(wide_cryptic_2015)
+
+rm(cryp_fish_2015)
+```
+
+### 4. wide_cryptic
+
+
+
+```{r include=FALSE}
+
+all_fish <- one_observer %>% filter(Status != "T") %>% 
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_cryptic<-spread(all_fish,Species,aboundance,fill = 0)
+
+wide_cryptic<-na.omit(wide_cryptic)
+
+rm(all_fish)
+
+```
+
+
+# nMDS
+
+## for all fish
+
+### wisconsin transformation
+
+for each year, without 2017
+
+
+```{r echo=TRUE}
+
+wide_data_no_2017<-wide_data %>% filter(Year != "2017")
+
+```
+
+
+```{r}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_data_no_2017$year_month)) {
+  
+  data <- wide_data_no_2017 %>% filter(year_month == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)
+
+    print(ord$stress)
+  
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+
+
+```
+
+for all fish but without schools...
+
+```{r}
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+wide_data_no_2017$`Pseudanthias squamipinnis`<-NULL
+wide_data_no_2017$`Pseudanthias spp.`<-NULL
+wide_data_no_2017$`Chromis viridis`<-NULL
+wide_data_no_2017$`Neopomacentrus miryae`<-NULL
+
+for (i in unique(wide_data_no_2017$year_month)) {
+  
+  data <- wide_data_no_2017 %>% filter(year_month ==i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = i)
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+
+```
+
+
+for each site
+
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+   print(ord$stress)
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+
+```
+for each site with no schools
+
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+wide_2015$`Pseudanthias spp.`<-NULL
+wide_2015$`Chromis viridis`<-NULL
+wide_2015$`Neopomacentrus miryae`<-NULL
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress) 
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+
+```
+
+### with no transformatiom
+
+
+```{r}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_data_no_2017$year_month)) {
+  
+  data <- wide_data_no_2017 %>% filter(year_month == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+  site <- factor(data$Site)
+   print(ord$stress)
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+
+
+```
+
+
+for each site
+
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+   print(ord$stress)
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+
+```
+
+
+### sqrt transformation
+
+
+```{r}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_data_no_2017$year_month)) {
+  
+  data <- wide_data_no_2017 %>% filter(year_month == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- sqrt(wis_data)
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+   print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+
+
+```
+
+
+for each site
+
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- sqrt(wis_data)
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+  Year <- factor(data$year_month)
+ print(ord$stress) 
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+
+```
+
+### hellinger transformation
+
+
+```{r}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_data_no_2017$year_month)) {
+  
+  data <- wide_data_no_2017 %>% filter(year_month == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- decostand(wis_data,"hellinger")
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+
+
+```
+for each site
+
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_2015$Site)) {
+  
+  data <- wide_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data <- decostand(wis_data,"hellinger")
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+
+```
+## for cryptic species only
+
+for each year
+
+
+```{r include=FALSE}
+
+wide_cryptic_no_2017<-wide_cryptic %>% filter(Year != "2017")
+
+```
+
+
+```{r echo=FALSE}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_cryptic_no_2017$year_month)) {
+  
+  data <- wide_cryptic_no_2017 %>% filter(year_month == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+```
+
+for each site
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+```
+
+### no transformation
+
+all sites toghether
+
+```{r}
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+  data <- wide_cryptic_no_2017 
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n")
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+
+```
+all sites toghether - no schools
+
+```{r}
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+  data <- wide_cryptic_no_2017 
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+
+```
+
+```{r echo=FALSE}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_cryptic_no_2017$year_month)) {
+  
+  data <- wide_cryptic_no_2017 %>% filter(year_month == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+```
+
+for each site
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+ 
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+```
+
+#Do the style
+
+
+all the site beside katza
+
+```{r echo=FALSE}
+
+#color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+new_6<-c("#277da1",
+         "#4d194d",
+         "#43aa8b",
+         "#d9ed92",
+         "#f94144",
+         "#f8961e")
+
+new_7<-c("#277da1",
+         "#4d194d",
+         "#90be6d",
+         "#43aa8b",
+         "#d9ed92",
+         "#f94144",
+         "#f8961e")
+
+
+wide_cryptic_2015$year_month<-as.character(wide_cryptic_2015$year_month)
+wide_cryptic_2015$year_month <-ifelse(month(wide_cryptic_2015$Date) == 6,
+                                     paste0("Spring ",year(wide_cryptic_2015$Date)),
+                                     paste0("Fall " ,year(wide_cryptic_2015$Date)))
+
+
+wide_cryptic_2015$year_month<-as.factor(wide_cryptic_2015$year_month)
+wide_cryptic_2015$year_month<-ordered(wide_cryptic_2015$year_month,levels= c("Fall 2015",
+    "Fall 2016",
+    "Fall 2017",
+    "Fall 2018",
+    "Spring 2020",
+    "Fall 2020" ,
+    "Spring 2021"))
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE) 
+  
+  if (i == "Katza") {color_y=new_7} else
+  {color_y=new_6}
+  
+  print(color_y)
+ 
+  Year <- factor(data$year_month)
+  
+  Year<-droplevels(Year)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.9,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+
+}
+
+if (i == "Katza"){legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)}
+
+```
+
+```{r echo=FALSE}
+
+#color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+new_6<-c("#277da1",
+         "#4d194d",
+         "#43aa8b",
+         "#d9ed92",
+         "#f94144",
+         "#f8961e")
+
+new_7<-c("#277da1",
+         "#4d194d",
+         "#90be6d",
+         "#43aa8b",
+         "#d9ed92",
+         "#f94144",
+         "#f8961e")
+
+
+wide_cryptic_2015$year_month<-as.character(wide_cryptic_2015$year_month)
+wide_cryptic_2015$year_month <-ifelse(month(wide_cryptic_2015$Date) == 6,
+                                     paste0("Spring ",year(wide_cryptic_2015$Date)),
+                                     paste0("Fall " ,year(wide_cryptic_2015$Date)))
+
+
+wide_cryptic_2015$year_month<-as.factor(wide_cryptic_2015$year_month)
+wide_cryptic_2015$year_month<-ordered(wide_cryptic_2015$year_month,levels= c("Fall 2015",
+    "Fall 2016",
+    "Fall 2017",
+    "Fall 2018",
+    "Spring 2020",
+    "Fall 2020" ,
+    "Spring 2021"))
+
+
+wide_no_k<-wide_cryptic_2015 %>% filter(Site!="Katza")
+wide_no_k$year_month<-droplevels(wide_no_k$year_month)
+
+for (i in unique(wide_no_k$Site)) {
+  
+  data <- wide_no_k %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE) 
+  
+  color_y=new_6
+ 
+  Year <- factor(data$year_month)
+  
+  Year<-droplevels(Year)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.5,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+
+}
+
+wide_k<-wide_cryptic_2015 %>% filter(Site=="Katza")
+
+for (i in unique(wide_k$Site)) {
+  
+  data <- wide_k %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE) 
+  
+  color_y=new_7
+ 
+  Year <- factor(data$year_month)
+  
+  Year<-droplevels(Year)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.5,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+
+}
+
+```
+
+
+
+
+
+
+all sites
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+
+  
+  data <- wide_cryptic_2015 
+  wis_data <- data[,9:ncol(data)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n")
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+
+```
+
+
+### sqrt transformation
+
+
+```{r echo=FALSE}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(wide_cryptic_no_2017$year_month)) {
+  
+  data <- wide_cryptic_no_2017 %>% filter(year_month == i)
+  wis_data <- data[,9:ncol(data)]
+  wis_data<-sqrt(wis_data)
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data$Site)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+```
+
+for each site
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(wide_cryptic_2015$Site)) {
+  
+  data <- wide_cryptic_2015 %>% filter(Site == i)
+  wis_data <- data[,9:ncol(data)]
+ wis_data<-sqrt(wis_data)
+   ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  Year <- factor(data$year_month)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+```
+
+
+
+
+
+
+
+
+
+## Presence/absence nMDS
+
+Ill try one example for P/A data to see if it makes any difference
+
+ill take the data for all the fish
+
+
+
+## for all fish
+
+
+for each year, without 2017
+
+
+```{r echo=TRUE}
+
+
+pa_data<-wide_data_no_2017[,9:ncol(wide_data_no_2017)]
+pa_data[pa_data>0]<-1
+
+pa_data_no_2017<-cbind(wide_data_no_2017[,1:8],pa_data)
+
+```
+
+
+```{r}
+
+
+
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(pa_data_no_2017$year_month)) {
+  
+  data <- pa_data_no_2017 %>% filter(year_month == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+  site <- factor(data$Site)
+  print(ord$stress)
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data$Site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+
+```
+```{r}
+pa_data_site<-wide_2015[,9:ncol(wide_2015)]
+pa_data_site[pa_data_site>0]<-1
+
+pa_data<-cbind(wide_2015[,1:8],pa_data_site)
+```
+
+for each site
+
+```{r echo=FALSE}
+
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(pa_data$Site)) {
+  
+  data <- pa_data %>% filter(Site == i)
+  wis_data <- wisconsin(data[,9:ncol(data)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  
+  Year <- factor(data$year_month)
+  print(ord$stress)
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data$year_month, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+```

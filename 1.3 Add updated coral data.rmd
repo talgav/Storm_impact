@@ -1,0 +1,80 @@
+---
+title: "1.3 Add updated coral data"
+author: "TG"
+date: "11 8 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+this script is here because i had problem in scrip 1.1 to run fishbase functions...
+
+
+
+originally it was supposed to replace the former script. 
+*instad* i add this new chunk that run over the previous data base (by mistake!!)
+
+it is best no to run it again...
+
+
+```{r message=TRUE, warning=TRUE, include=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(rfishbase)
+library(Hmisc)
+
+```
+
+
+```{r}
+load("fish_full_data.rdata")
+load("knoll_mdata.rdata")
+load("coral_cover.rdata")
+```
+
+coral data to join
+
+```{r eval=FALSE, include=FALSE}
+
+add_coral<- coral_cover %>% select(1:5,18:25,16,14,6)
+
+add_coral<- add_coral %>% 
+  rename(Stony_Coral = Stony.Coral, Soft_Coral=Soft.Coral) %>% 
+  mutate(coral_cover = Stony_Coral+Soft_Coral)
+
+fish_full_data<-fish_full_data %>% select(-(17:25))
+
+fish_full_data <- fish_full_data %>% mutate(coral_att = paste(Site,Knoll,Year,sep = "_"))
+
+add_coral<-add_coral %>% mutate(coral_att = paste(Site,Knoll,Year,sep = "_")) %>% select(-(1:3),-5)
+
+
+fish_full_data<-left_join(fish_full_data,add_coral)
+
+fish_full_data$Species_grouped<-NULL
+
+
+```
+
+```{r}
+#save(fish_full_data,file = "fish_full_data.Rdata")
+#write.csv(fish_full_data,file = "fish_full_data.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

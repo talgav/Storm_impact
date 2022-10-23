@@ -1,0 +1,293 @@
+---
+title: "4.1 community structure"
+author: "TG"
+date: "26 1 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+# NMDS
+
+### Data preperation
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+3) convert to wide data
+
+```{r}
+wide_data<- one_observer %>%
+  group_by(Site,Year,Knoll,Date,survey_id,Species_grouped) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data<-spread(wide_data,Species_grouped,aboundance,fill = 0)
+```
+
+# NMDS includeing transient
+```{r}
+nmds_data<-wide_data[,6:ncol(wide_data)]
+
+wis_nmds_data=wisconsin(nmds_data)
+
+ord=metaMDS(wis_nmds_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)  
+
+stressplot(ord)
+
+site =wide_data$Site
+year = wide_data$Year
+
+site_year<-paste(wide_data$Site,wide_data$Year,sep= "_")
+
+ordiplot(ord,type="n")
+ordihull(ord,groups=site,draw="polygon",col="#33AADE",label=T)
+orditorp(ord,display="species",col="navyblue",air=1)
+orditorp(ord,display="sites")
+
+
+ordiplot(ord,type="n")
+ordihull(ord,groups= year,draw="polygon",col="#33AADE",label=T)
+orditorp(ord,display="species",col="navyblue",air=1)
+
+ordiplot(ord,type="n")
+ordihull(ord,groups= site_year,draw="polygon",label=T)
+orditorp(ord,display="species",col="navyblue",air=1)
+
+ordiplot(ord,type="n")
+ordihull(ord,groups=site,draw="polygon",col="#33AADE",label=T)
+orditorp(ord,display="sites")
+
+
+
+ordiplot(ord,type="n")
+points (ord, col = wide_data$Site)
+
+unique(wide_data$Site)
+color_chart<-data.frame("Site"=unique(wide_data$Site))
+color_chart$color<-c("#aa2069","#7d4199","#ed0479","#e95f45","#278acb")
+
+wide_data<-left_join(wide_data,color_chart,by="Site")
+wide_data<-wide_data %>% relocate(color, .after = Site)
+
+ordiplot (ord, display = 'si', type = 'n')
+points (ord, col = wide_data$color)
+```
+# NMDS excluding transient
+
+
+
+```{r}
+wide_data_cryp<- one_observer %>% filter(Status=="C") %>% 
+  group_by(Site,Year,Knoll,Date,survey_id,Species_grouped) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data_cryp<-spread(wide_data_cryp,Species_grouped,aboundance,fill = 0)
+
+```
+
+
+```{r}
+nmds_data_cryp<-wide_data_cryp[,6:ncol(wide_data_cryp)]
+
+wis_nmds_data_cryp=wisconsin(nmds_data_cryp)
+
+ord_cryp=metaMDS(wis_nmds_data_cryp,distance = "bray" ,trace = F,k=2,autotransform = FALSE) 
+ord_cryp
+
+stressplot(ord_cryp)
+
+site =wide_data_cryp$Site
+
+ordiplot(ord_cryp,type="n")
+ordihull(ord_cryp,groups=site,draw="polygon",col="#33AADE",label=T)
+orditorp(ord_cryp,display="species",col="navyblue",air=1)
+orditorp(ord_cryp,display="sites")
+
+
+
+
+unique(wide_data_cryp$Site)
+color_chart<-data.frame("Site"=unique(wide_data_cryp$Site))
+color_chart$color<-c("#aa2069","#7d4199","#ed0479","#e95f45","#278acb")
+
+wide_data_cryp<-left_join(wide_data_cryp,color_chart,by="Site")
+wide_data_cryp<-wide_data_cryp %>% relocate(color, .after = Site)
+
+ordiplot (ord_cryp, display = 'si', type = 'n')
+points (ord_cryp, col = wide_data_cryp$color)
+```
+
+
+
+# NMDS only transient
+
+
+
+```{r}
+wide_data_tran<- one_observer %>% filter(Status=="T") %>% 
+  group_by(Site,Year,Knoll,Date,survey_id,Species_grouped) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data_tran<-spread(wide_data_tran,Species_grouped,aboundance,fill = 0)
+
+```
+
+
+```{r}
+nmds_data_tran<-wide_data_tran[,6:ncol(wide_data_tran)]
+
+wis_nmds_data_tran=wisconsin(nmds_data_tran)
+
+ord_tran=metaMDS(wis_nmds_data_tran,distance = "bray" ,trace = F,k=2,autotransform = FALSE) 
+ord_tran
+
+stressplot(ord_tran)
+
+site =wide_data_tran$Site
+year= wide_data_tran$Year
+
+ordiplot(ord_tran,type="n")
+ordihull(ord_tran,groups=site,draw="polygon",col="#33AADE",label=T)
+orditorp(ord_tran,display="species",col="navyblue",air=1)
+orditorp(ord_tran,display="sites")
+
+
+ordiplot(ord_tran,type="n")
+ordihull(ord_tran,groups= year,draw="polygon",col="#33AADE",label=T)
+orditorp(ord_tran,display="species",col="navyblue",air=1)
+
+
+unique(wide_data_tran$Site)
+color_chart<-data.frame("Site"=unique(wide_data_tran$Site))
+color_chart$color<-c("#aa2069","#7d4199","#ed0479","#e95f45","#278acb")
+
+wide_data_tran<-left_join(wide_data_tran,color_chart,by="Site")
+wide_data_tran<-wide_data_tran %>% relocate(color, .after = Site)
+
+ordiplot (ord_cryp, display = 'si', type = 'n')
+points (ord_cryp, col = wide_data_tran$color)
+```
+
+
+
+# make presence- absence nmds
+
+```{r}
+
+pa_data<-nmds_data
+pa_data[pa_data>0]<-1
+
+wis_pa_nmds_data=wisconsin(pa_data)
+
+ord_pa=metaMDS(wis_pa_nmds_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE) 
+ord_pa
+
+
+stressplot(ord_pa)
+
+site =wide_data$Site
+year = wide_data$Year
+
+site_year<-paste(wide_data$Site,wide_data$Year,sep= "_")
+
+ordiplot(ord_pa,type="n")
+ordihull(ord_pa,groups=site,draw="polygon",col="#33AADE",label=T)
+orditorp(ord_pa,display="species",col="navyblue",air=1)
+orditorp(ord_pa,display="sites")
+
+
+ordiplot(ord_pa,type="n")
+ordihull(ord_pa,groups= year,draw="polygon",col="#33AADE",label=T)
+orditorp(ord_pa,display="species",col="navyblue",air=1)
+
+ordiplot(ord_pa,type="n")
+ordihull(ord_pa,groups= site_year,draw="polygon",label=T)
+orditorp(ord_pa,display="species",col="navyblue",air=1)
+
+ordiplot(ord_pa,type="n")
+ordihull(ord_pa,groups=site,draw="polygon",col="#33AADE",label=T)
+orditorp(ord_pa,display="sites")
+
+
+
+ordiplot(ord_pa,type="n")
+points (ord_pa, col = wide_data$Site)
+
+unique(wide_data$Site)
+color_chart<-data.frame("Site"=unique(wide_data$Site))
+color_chart$color<-c("#aa2069","#7d4199","#ed0479","#e95f45","#278acb")
+
+wide_data<-left_join(wide_data,color_chart,by="Site")
+wide_data<-wide_data %>% relocate(color, .after = Site)
+
+ordiplot (ord_pa, display = 'si', type = 'n')
+points (ord_pa, col = wide_data$color)
+```
+
+
+
+
+
+
+

@@ -1,0 +1,818 @@
+---
+title: "12.1 coral richness"
+author: "TG"
+date: "25 11 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+```{r}
+load("knoll_mdata.rdata")
+load("coral_cover.rdata")
+load("coral_comm.rdata")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+```
+
+some basic plot:
+
+* cover of stony corals
+
+
+```{r}
+
+coral_cover<-coral_cover %>% drop_na(Site)
+
+coral_cover$storm<-ordered(coral_cover$storm,levels = c("Before","After"))
+
+ggplot(coral_cover, aes(x=Site,y= Stony.Coral,fill=storm)) +
+  geom_boxplot(notch = F)+theme_bw()+ ylab("Stony coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_fill_manual(values=c("#f4aca4","#f66279"))
+
+
+ggplot(coral_cover, aes(x=Site,y= Stony.Coral,fill=storm)) +
+  geom_boxplot(notch = F)+theme_bw()+ ylab("Stony coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_fill_manual(values=c("#98c1d9","#ee6c4d"))
+
+#ggsave("stony_coral_cover_storm.png" , width = 8, height = 6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per site")
+
+
+
+ggplot(coral_cover, aes(x=Site,y= Stony.Coral,fill=Site)) +
+  geom_boxplot(notch = F)+theme_bw()+ ylab("Stony coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none")+
+  scale_fill_manual(values = color)
+
+#  ggsave("stony_coral_cover.png" , width = 8, height = 6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per site")
+  
+
+# soft
+  
+ggplot(coral_cover, aes(x=Site,y= Soft.Coral,fill=storm)) +
+  geom_boxplot()+theme_bw()+ ylab("Soft coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "top")+
+  scale_fill_manual(values=c("#7268a6","#86a3c3"))
+
+# new colors
+
+ggplot(coral_cover, aes(x=Site,y= Soft.Coral,fill=storm)) +
+  geom_boxplot()+theme_bw()+ ylab("Soft coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_fill_manual(values=c("#98c1d9","#ee6c4d"))
+
+  ggsave("soft_coral_cover_storm.png" , width = 8, height = 6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per site")
+
+
+  ggplot(coral_cover, aes(x=Site,y= Soft.Coral,fill =Site)) +
+  geom_boxplot()+theme_bw()+ ylab("Soft coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none")+
+    scale_fill_manual(values= color)
+  
+ggsave("soft_coral_cover.png" , width = 8, height = 6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\cover per site") 
+  
+  
+  
+  
+  
+  
+  
+# algae
+  
+  ggplot(coral_cover, aes(x=Site,y= Algae,fill=storm)) +
+  geom_boxplot()+theme_bw()+ ylab("Algae cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "top",
+        legend.title = element_text(size=22))+
+  scale_fill_manual(values= color)
+
+
+
+
+
+ggplot(coral_cover, aes(x=Site,y= Stony.Coral)) +
+  geom_boxplot(fill= "#f66279")+theme_bw()+ ylab("Stony coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))
+        
+
+
+
+ggplot(coral_cover, aes(x=Site,y= Algae)) +
+  geom_boxplot(fill ="#b6cec7",notch = T)+theme_bw()+ ylab("Algae cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))
+  
+
+
+ggplot(coral_cover, aes(x=storm,y= Stony.Coral)) +
+  geom_boxplot(fill= c("#f66279","#f4aca4"),notch = T)+theme_bw()+ ylab("Stony coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))
+
+
+
+ggplot(coral_cover, aes(x=storm,y= Soft.Coral)) +
+  geom_boxplot(fill= c("#7268a6","#86a3c3"))+theme_bw()+ ylab("Soft coral cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))
+
+ggplot(coral_cover, aes(x=storm,y= Algae)) +
+  geom_boxplot(fill= c("#b6cec7","#d8e0bb"))+theme_bw()+ ylab("Algae cover (%)")+
+   theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))
+```
+
+# model stony coral cover
+
+lm and lmer versions
+
+```{r}
+
+stony_list[[1]]<-lm(formula = Stony.Coral ~ storm  ,data = cover_no17)
+
+stony_list[[2]]<-lm(formula = Stony.Coral ~ Year, data = cover_no17)
+
+stony_list[[3]]<-lm(formula = Stony.Coral ~ Site,data = cover_no17)
+
+stony_list[[4]]<-lm(formula = Stony.Coral ~ Max_depth,data = cover_no17)
+
+stony_list[[5]]<-lm(formula = Stony.Coral ~ storm +Site  ,data = cover_no17)
+
+stony_list[[6]]<-lm(formula = Stony.Coral ~ storm +Site +Max_depth  ,data = cover_no17)
+
+stony_list[[7]]<-lm(formula = Stony.Coral ~ storm +Site +Max_depth +Min_depth  ,data = cover_no17)
+
+stony_list[[8]]<-lm(formula = Stony.Coral ~ storm +Site +Min_depth  ,data = cover_no17)
+
+stony_list[[9]]<-lm(formula = Stony.Coral ~ storm +Site +Max_depth +Surface_Area ,data = cover_no17)
+
+stony_list[[10]]<-lmer(formula = Stony.Coral ~ storm +Site +Max_depth  + (1|Year) ,data = cover_no17)
+
+
+stony_list[[11]]<-lmer(formula = Stony.Coral ~ storm +Site +Max_depth  + (1|Year) + (1|knoll_number) ,data = cover_no17)
+
+
+stony_list[[12]]<-lmer(formula = Stony.Coral ~ storm +Max_depth  + (1|Year) + (1|knoll_number) ,data = cover_no17)
+
+
+stony_list[[13]]<-lmer(formula = Stony.Coral ~ storm +Site +Max_depth   + (1|knoll_number) ,data = cover_no17)
+
+
+stony_list[[14]]<-lmer(formula = Stony.Coral ~ Site +Max_depth  + (1|Year) + (1|knoll_number) ,data = cover_no17)
+
+stony_list[[15]]<-lmer(formula = Stony.Coral ~ storm +Site +Max_depth  + Year + (1|knoll_number) ,data = cover_no17)
+
+stony_list[[16]]<-lmer(formula = Stony.Coral ~ storm +Site+ storm*Site +Max_depth  + Year + (1|knoll_number) ,data = cover_no17)
+
+stony_list[[17]]<-lmer(formula = Stony.Coral ~ storm +Site+ storm*Site +Max_depth  + (1|knoll_number) ,data = cover_no17)
+
+
+stony_list[[18]]<-lmer(formula = Stony.Coral ~ storm +Site+ storm*Site +storm*Max_depth  + (1|knoll_number) ,data = cover_no17)
+
+stony_selection<-model.sel(stony_list)
+
+
+
+model<-glmmTMB::glmmTMB(formula = Stony.Coral ~  storm*Site +Max_depth  + (1|knoll_number) ,data = cover_no17,REML = F)
+
+
+```
+
+
+convert to glmmTMB
+
+
+
+```{r}
+
+stony_list<-list()
+
+cover_no17<-coral_cover %>% filter(Year != "2017") %>% 
+  mutate("knoll_number" = paste(Knoll,Site,sep="_")) %>% na.omit(cover_no17)
+
+
+
+cover_no17$Site<-as.factor(cover_no17$Site)
+
+cover_no17$Stony.Coral_p<- cover_no17$Stony.Coral/100
+
+
+stony_list[[1]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm   ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+stony_list[[2]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ Year, data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+stony_list[[3]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ Site,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+stony_list[[4]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ Max_depth,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[10]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm +Site +Max_depth  + (1|Year) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[11]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm +Site +Max_depth  + (1|Year) + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[12]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm +Max_depth  + (1|Year) + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[13]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm +Site +Max_depth   + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[14]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ Site +Max_depth  + (1|Year) + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+stony_list[[15]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm +Site +Max_depth  + Year + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+stony_list[[16]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm*Site +Max_depth  + Year + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[17]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm + Site+ Year*Site +Max_depth  + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[18]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~  storm*Site +storm*Max_depth  + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[19]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm*Site+ Max_depth  + (1|knoll_number) ,data = cover_no17,REML = F,family=glmmTMB::beta_family(link="logit"))
+
+
+stony_selection<-model.sel(stony_list)
+
+
+
+```
+
+
+
+
+
+
+
+```{r}
+stony_list<-list()
+
+stony_list[[1]]<-glmmTMB::glmmTMB(formula = Stony.Coral ~ storm*Site+ Max_depth+(1|Year)  + (1|knoll_number)+ Max_depth ,
+                                  data = cover_no17,
+                                  REML = T  )
+
+
+stony_list[[2]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~ storm*Site+ Max_depth+ (1|knoll_number) +Max_depth,data = cover_no17,REML = T,family= glmmTMB::beta_family(link="logit"))
+
+
+stony_list[[3]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~Site*Year+ Max_depth+ (1|knoll_number) + Max_depth,
+                   data = cover_no17,
+                   REML = T,
+                   family= glmmTMB::beta_family(link="logit"))
+
+
+
+### use this one for genreal storm effect
+
+stony_list[[4]]<-glmmTMB::glmmTMB(formula = Stony.Coral_p ~storm+(1|Site)+(1|knoll_number),
+                   data = cover_no17,
+                   REML = T,
+                   family= glmmTMB::beta_family(link="logit"))
+
+summary(stony_list[[4]])
+
+
+stony_list[[5]]<-glmmTMB::glmmTMB(formula = Stony.Coral ~ Year +(1|knoll_id),
+                   data = cover_no17,
+                   REML = F)
+
+
+summary(stony_list[[5]])
+
+r.squaredGLMM(stony_list[[4]])
+
+model.sel(stony_list)
+
+
+```
+
+The chosen model (model #1 from previos chunk)
+i converted reml to be FALSE because my main intrest is the fix effects
+
+```{r}
+chosen_m <-glmmTMB::glmmTMB(formula = Stony.Coral ~ storm*Site+ Max_depth+(1|Year)  + (1|knoll_number)+ Max_depth ,
+                                  data = cover_no17,
+                                  REML = F)
+
+
+summary(chosen_m)
+
+
+simple_chosen_m <-glmmTMB::glmmTMB(formula = Stony.Coral ~ storm + (1|Site)  + (1|knoll_number) , data = cover_no17,
+                                  REML = F)
+
+
+summary(simple_chosen_m)
+
+sjPlot::plot_model(simple_chosen_m,type = "eff",terms =c('storm'),ci.lvl = 0.95)+theme_bw()+ theme(axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))
+```
+
+
+
+
+```{r}
+
+model<-glmmTMB::glmmTMB(formula = Stony.Coral ~  storm*Site +Max_depth  + (1|knoll_number) ,data = cover_no17,REML = T)
+
+
+summary(model)
+
+sjPlot::plot_model(model,type = "diag")
+
+sjPlot::plot_model(model,type = "eff",terms =c('Site','storm'),ci.lvl = 0.95)+theme_bw()+   theme(axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18))
+
+model_2<-glmmTMB::glmmTMB(formula = Stony.Coral ~  storm*Site   + (1|knoll_number) ,data = cover_no17)
+
+
+model_3<-glmmTMB::glmmTMB(formula = Stony.Coral~storm*Max_depth +  (1|knoll_number),data = cover_no17)
+
+summary(model_3)
+sjPlot::plot_model(model_3,type = "diag")
+
+
+
+
+
+model_gg=ggeffects::ggpredict(model,terms = c('Site','storm'))
+
+#ggplot()+
+  geom_point(data=model_gg,aes(x=x,y=predicted,group=group,color=group),position_dodge(width = 0.3))+
+  geom_errorbar(data=model_gg,aes(x=x,ymin=predicted-conf.low,ymax=predicted+conf.high),position = "dodge")
+
+
+sjPlot::plot_model(model_2,type = "eff",terms =c('Site','storm'),ci.lvl = 0.95)
+
+
+
+my_model<-stony_list[[17]]
+
+
+
+summary(stony_list[[17]])
+r.squaredGLMM(model)
+```
+
+```{r}
+model <- glmmTMB::glmmTMB(formula = Stony.Coral_p ~  storm*Site +Max_depth  + (1|knoll_number) ,data = cover_no17,family=glmmTMB::beta_family(link="logit"),REML = F)
+
+
+summary(model)
+
+
+sjPlot::plot_model(model,type = "diag")
+
+sjPlot::plot_model(model,type = "eff",terms =c('Site','storm'),ci.lvl = 0.95)+theme_bw()+   theme(axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=18),
+        axis.title.y = element_text(size=18))
+```
+
+
+
+
+#soft coral model
+
+
+```{r}
+cover_no17$Soft.Coral_p<-cover_no17$Stony.Coral_p/100
+
+soft_model<-glmmTMB::glmmTMB(formula = Soft.Coral_p ~  storm*Site  + (1|knoll_number) ,data = cover_no17,REML = F,glmmTMB::beta_family(link="logit"))
+
+
+summary(soft_model)
+
+sjPlot::plot_model(soft_model,type = "diag")
+
+
+soft_model_simple<-glmmTMB::glmmTMB(formula = Soft.Coral_p ~  storm+(1|Site)  + (1|knoll_number) ,data = cover_no17,REML = F,glmmTMB::beta_family(link="logit"))
+
+summary(soft_model_simple)
+```
+
+
+# Algae cover
+
+need to refer to the zero inflation
+
+
+```{r}
+cover_no17$Algae_p<-cover_no17$Algae/100
+
+
+algae_model<-glmmTMB::glmmTMB(formula = Algae ~  storm*Site  + (1|knoll_number) ,data = cover_no17,REML = F)
+
+algae_model<-glmmTMB::glmmTMB(formula = Algae ~  storm + Site  + (1|knoll_number) ,data = cover_no17,REML = F)
+summary(algae_model)
+
+sjPlot::plot_model(algae_model,type = "diag")
+
+
+algae_model_simple<-glmmTMB::glmmTMB(formula = Algae ~  storm+(1|Site)  + (1|knoll_number) ,data = cover_no17,REML = F)
+
+summary(algae_model_simple)
+
+
+```
+
+
+rarefaction curves - only stone corals
+
+
+```{r}
+
+
+stone_coral<- coral_comm %>%
+  filter(Category %in% c("Stony Coral","Hydrozoa"))
+
+
+rare_coral<-stone_coral %>% group_by(site,knoll,year,storm,species) %>% summarise("abundance"=sum(points))
+
+data<-spread(rare_coral,species,abundance,fill = 0)
+
+
+data <- data %>% filter(year != "2017")
+
+data
+
+species_data<-data[,5:ncol(data)]
+site_data<-data[,1:4]
+
+site_data$Site_Knoll<-paste(site_data$site,site_data$knoll,sep="_")
+
+mobr_coral<- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_coral, 'site', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_coral, 'site', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_rarefaction(mobr_coral, 'site', method='SBR', lwd=4,leg_loc='bottomright')
+plot_abu(mobr_coral, 'site', type='rad', pooled=T, log='x')    
+
+
+
+site_stats <- get_mob_stats(mobr_coral, group_var = "site",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = 1000)
+plot(site_stats)
+
+
+```
+
+
+storm effect
+
+```{r}
+
+only_coral<- coral_comm %>%
+  filter(Category %in% c("Soft Coral","Stony Coral","Corallimorpharia","Zoantharia","Corallimorpharia","Hydrozoa"))
+
+
+rare_coral<-only_coral %>% group_by(site,knoll,year,storm,species) %>% summarise("abundance"=sum(points))
+
+data<-spread(rare_coral,species,abundance,fill = 0)
+
+
+data <- data %>% filter(year != "2017")
+
+data
+
+species_data<-data[,5:ncol(data)]
+site_data<-data[,1:4]
+
+site_data$Site_Knoll<-paste(site_data$site,site_data$knoll,sep="_")
+
+mobr_coral<- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_coral, 'storm', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_coral, 'storm', method='SBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_coral, 'storm', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_abu(mobr_coral, 'storm', type='rad', pooled=T, log='x') 
+
+storm_stats <- get_mob_stats(mobr_coral, group_var = "storm",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = 50)
+plot(storm_stats)
+
+```
+
+year effect
+
+```{r}
+only_coral<- coral_comm %>%
+  filter(Category %in% c("Soft Coral","Stony Coral","Corallimorpharia","Zoantharia","Corallimorpharia","Hydrozoa"))
+
+
+rare_coral<-only_coral %>% group_by(site,knoll,year,storm,species) %>% summarise("abundance"=sum(points))
+
+data<-spread(rare_coral,species,abundance,fill = 0)
+
+
+data <- data %>% filter(year != "2017")
+
+data
+
+species_data<-data[,5:ncol(data)]
+site_data<-data[,1:4]
+
+site_data$Site_Knoll<-paste(site_data$site,site_data$knoll,sep="_")
+
+mobr_coral<- make_mob_in(species_data, site_data)
+
+
+plot_rarefaction(mobr_coral, 'year', method='IBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_coral, 'year', method='SBR', lwd=4,leg_loc='bottomright')
+plot_rarefaction(mobr_coral, 'year', method='IBR', lwd=4,leg_loc='bottomright',pooled = F)
+plot_abu(mobr_coral, 'year', type='rad', pooled=T, log='x') 
+
+storm_stats <- get_mob_stats(mobr_coral, group_var = "year",n_perm = 100,
+                            boot_groups = TRUE,effort_samples = 50)
+plot(storm_stats)
+```
+coral nMDS
+
+ill start with no transformation and continue from there...
+
+
+```{r}
+only_coral<- coral_comm %>%
+  filter(Category %in% c("Soft Coral","Stony Coral","Corallimorpharia","Zoantharia","Corallimorpharia","Hydrozoa"))
+
+
+rare_coral<-only_coral %>% group_by(site,knoll,year,storm,species) %>% summarise("abundance"=sum(points))
+
+data<-spread(rare_coral,species,abundance,fill = 0)
+
+
+data <- data %>% filter(year != "2017")
+```
+
+
+
+# sites & years no transformation:
+
+
+
+```{r}
+
+color<-c("#56dde0", "#33658a","#f5af2d","#f2641a")
+
+color_y<-c("#ed6028","#159ed2","#16a647","#c40032","#522c19","#fcf5c1")
+
+  data_nmds <- data 
+  wis_data <- data_nmds[,5:ncol(data_nmds)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data_nmds$site)
+  Year <- factor(data_nmds$year)
+  
+#plot by site 
+  
+  
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data_nmds$site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+#plot by year
+
+
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data_nmds$year, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+```
+
+# sites & years hellinger transformation:
+
+
+
+```{r}
+
+color<-c("#56dde0", "#33658a","#f5af2d","#f2641a")
+
+color_y<-c("#ed6028","#159ed2","#16a647","#c40032","#522c19","#fcf5c1")
+
+  data_nmds <- data 
+  wis_data <- data_nmds[,5:ncol(data_nmds)]
+  wis_data <- decostand(wis_data,"hellinger")
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data_nmds$site)
+  Year <- factor(data_nmds$year)
+  
+#plot by site 
+  
+  
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data_nmds$site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+#plot by year
+
+
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = data_nmds$year, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+```
+
+# sites & years wisconsin transformation:
+
+```{r}
+
+color<-c("#56dde0", "#33658a","#f5af2d","#f2641a")
+
+color_y<-c("#ed6028","#159ed2","#16a647","#c40032","#522c19","#fcf5c1")
+
+k_new<-c("#669bbc","#336683","#1a4b66","#c1121f")
+
+
+  only_stone<- coral_comm %>%
+  filter(Category %in% c("Stony Coral","Hydrozoa"))
+
+
+rare_coral<-only_stone %>% group_by(site,knoll,year,storm,species) %>% summarise("abundance"=sum(points))
+
+data<-spread(rare_coral,species,abundance,fill = 0)
+
+
+data <- data %>% filter(year != "2017")
+
+
+
+  data_nmds <- data 
+  wis_data <- wisconsin(data_nmds[,5:ncol(data_nmds)])
+  
+   ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data_nmds$site)
+  Year <- factor(data_nmds$year)
+  
+#plot by site 
+
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data_nmds$site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+#plot by year
+
+
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = k_new[Year],pch = 16)
+ordiellipse(ord, groups = data_nmds$year, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = k_new)
+legend("bottomright", legend = levels(Year), bty = "n", col = k_new, pch = 15,cex=1.5)
+
+```
+
+
+# coral by year- no transformation
+
+
+```{r}
+color_y<-c("#ed6028", "#159ed2", "#16a647","#c40032","#522c19","#fcf5c1")
+
+for (i in unique(data$site)) {
+  
+  site_data <- data %>% filter(site == i)
+  wis_data <- site_data[,5:ncol(site_data)]
+ 
+   ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+   print(ord$stress)
+  Year <- factor(site_data$year)
+  
+ordiplot(ord, type = "n", main = paste(i,", stress=",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color_y[Year],pch = 16)
+ordiellipse(ord, groups = site_data$year, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color_y)
+legend("bottomright", legend = levels(Year), bty = "n", col = color_y, pch = 15,cex=1.5)
+
+}
+
+
+
+```
+
+# coral by site- no transformation
+
+
+```{r}
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+
+for (i in unique(data$year)) {
+  
+  data_y <- data %>% filter(year ==i)
+  wis_data <- wisconsin(data_y[,5:ncol(data_y)])
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  site <- factor(data_y$site)
+  
+ordiplot(ord, type = "n", main = i)
+orditorp(ord, label = T, display = "sites", col = color[site],pch = 16)
+ordiellipse(ord, groups = data_y$site, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(site), bty = "n", col = color, pch = 15,cex=1.5)
+
+}
+  
+```
+# coral nMDS before and after the storm
+
+
+```{r}
+
+color<-c("#56dde0", "#33658a","#f5af2d","#f2641a")
+
+  data_nmds <- data 
+  wis_data <- data_nmds[,5:ncol(data_nmds)]
+  ord<- metaMDS(wis_data,distance = "bray" ,trace = F,k=2,autotransform = FALSE)   
+  print(ord$stress)
+  storm <- factor(data_nmds$storm)
+  
+  
+#plot by site 
+  
+  
+ordiplot(ord, type = "n",main = paste("Stress =",round(ord$stress,3)))
+orditorp(ord, label = T, display = "sites", col = color[storm],pch = 16)
+ordiellipse(ord, groups = data_nmds$storm, draw = "polygon",alpha = 0.35,label=F ,lty = 1,col = color)
+legend("bottomright", legend = levels(storm), bty = "n", col = color, pch = 15,cex=1.5)
+
+
+```
+
+
+

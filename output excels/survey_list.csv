@@ -1,0 +1,447 @@
+"","Site","Knoll","Year","Date","survey_id","observer_1","observer_2","observer_3"
+"1","NR",1,"2015",2015-10-19,"NR_1_2015-10-19","Yoni Belmaker","Ofri Mann",NA
+"2","NR",2,"2015",2015-10-19,"NR_2_2015-10-19","Yoni Belmaker","Ofri Mann",NA
+"3","NR",3,"2015",2015-10-19,"NR_3_2015-10-19","Hagar yancovitch shalom","Shahar Malamud","Noa Moshkowitz"
+"4","NR",4,"2015",2015-10-19,"NR_4_2015-10-19","Lior Avidan","Ori Frid",NA
+"5","NR",5,"2015",2015-10-19,"NR_5_2015-10-19","Hagar yancovitch shalom","Shahar Malamud","Noa Moshkowitz"
+"6","NR",6,"2015",2015-10-19,"NR_6_2015-10-19","Lior Avidan","Ori Frid",NA
+"7","NR",7,"2015",2015-10-19,"NR_7_2015-10-19","Hagar yancovitch shalom","Shahar Malamud","Noa Moshkowitz"
+"8","NR",8,"2015",2015-10-19,"NR_8_2015-10-19","Idan Doyev","Yoni Belmaker","Ofri Mann"
+"9","NR",9,"2015",2015-10-19,"NR_9_2015-10-19","Yoni Belmaker","Ofri Mann",NA
+"10","NR",10,"2015",2015-10-19,"NR_10_2015-10-19","Lior Avidan","Ori Frid",NA
+"11","NR",11,"2015",2015-10-19,"NR_11_2015-10-19","Hezi Buba","Lior Avidan","Ori Frid"
+"12","Caves",1,"2015",2015-10-20,"Caves_1_2015-10-20","Noa Moshkowitz","Yoni Belmaker",NA
+"13","Caves",2,"2015",2015-10-20,"Caves_2_2015-10-20","Noa Moshkowitz","Yoni Belmaker",NA
+"14","Caves",3,"2015",2015-10-20,"Caves_3_2015-10-20","Idan Doyev","Lior Avidan","Ori Frid"
+"15","Caves",4,"2015",2015-10-20,"Caves_4_2015-10-20","Idan Doyev","Lior Avidan","Ori Frid"
+"16","Caves",5,"2015",2015-10-20,"Caves_5_2015-10-20","Noa Moshkowitz","Yoni Belmaker",NA
+"17","Caves",6,"2015",2015-10-20,"Caves_6_2015-10-20","Noa Moshkowitz","Yoni Belmaker",NA
+"18","Caves",7,"2015",2015-10-20,"Caves_7_2015-10-20","Hagar yancovitch shalom","Shahar Malamud",NA
+"19","Caves",8,"2015",2015-10-20,"Caves_8_2015-10-20","Hagar yancovitch shalom","Shahar Malamud",NA
+"20","Caves",9,"2015",2015-10-20,"Caves_9_2015-10-20","Idan Doyev","Ori Frid",NA
+"21","Caves",10,"2015",2015-10-20,"Caves_10_2015-10-20","Idan Doyev","Ori Frid",NA
+"22","Caves",11,"2015",2015-10-20,"Caves_11_2015-10-20","Itai Granot","Lior Avidan",NA
+"23","Caves",12,"2015",2015-10-20,"Caves_12_2015-10-20","Itai Granot","Lior Avidan",NA
+"24","Caves",13,"2015",2015-10-20,"Caves_13_2015-10-20","Renanel Pickholtz","Victor China",NA
+"25","Caves",14,"2015",2015-10-20,"Caves_14_2015-10-20","Renanel Pickholtz","Victor China",NA
+"26","Princess",1,"2015",2015-10-21,"Princess_1_2015-10-21","Itai Granot","Lior Avidan",NA
+"27","Princess",2,"2015",2015-10-21,"Princess_2_2015-10-21","Itai Granot","Lior Avidan",NA
+"28","Princess",3,"2015",2015-10-21,"Princess_3_2015-10-21","Hagar yancovitch shalom","Renanel Pickholtz",NA
+"29","Princess",4,"2015",2015-10-21,"Princess_4_2015-10-21","Hagar yancovitch shalom","Renanel Pickholtz",NA
+"30","Princess",5,"2015",2015-10-21,"Princess_5_2015-10-21","Idan Doyev","Shahar Malamud",NA
+"31","Princess",6,"2015",2015-10-21,"Princess_6_2015-10-21","Ofri Mann","Ori Frid",NA
+"32","Princess",7,"2015",2015-10-21,"Princess_7_2015-10-21","Itai Granot","Lior Avidan",NA
+"33","Princess",8,"2015",2015-10-21,"Princess_8_2015-10-21","Hagar yancovitch shalom","Renanel Pickholtz",NA
+"34","Princess",9,"2015",2015-10-21,"Princess_9_2015-10-21","Idan Doyev","Ofri Mann","Ori Frid"
+"35","Princess",10,"2015",2015-10-21,"Princess_10_2015-10-21","Idan Doyev","Ofri Mann","Ori Frid"
+"36","Princess",11,"2015",2015-10-21,"Princess_11_2015-10-21","Noa Moshkowitz","Shahar Malamud",NA
+"37","Princess",12,"2015",2015-10-21,"Princess_12_2015-10-21","Noa Moshkowitz","Shahar Malamud",NA
+"38","Princess",13,"2015",2015-10-21,"Princess_13_2015-10-21","Ofri Mann","Ori Frid",NA
+"39","Katza",1,"2015",2015-10-22,"Katza_1_2015-10-22","Itai Granot","Ori Frid",NA
+"40","Katza",2,"2015",2015-10-22,"Katza_2_2015-10-22","Itai Granot","Ori Frid",NA
+"41","Katza",3,"2015",2015-10-22,"Katza_3_2015-10-22","Idan Doyev","Renanel Pickholtz",NA
+"42","Katza",4,"2015",2015-10-22,"Katza_4_2015-10-22","Idan Doyev","Renanel Pickholtz",NA
+"43","Katza",5,"2015",2015-10-22,"Katza_5_2015-10-22","Idan Doyev","Renanel Pickholtz",NA
+"44","Katza",6,"2015",2015-10-22,"Katza_6_2015-10-22","Idan Doyev","Renanel Pickholtz",NA
+"45","Katza",7,"2015",2015-10-22,"Katza_7_2015-10-22","Itai Granot","Ori Frid",NA
+"46","Katza",8,"2015",2015-10-22,"Katza_8_2015-10-22","Lior Avidan","Shahar Malamud",NA
+"47","Katza",9,"2015",2015-10-22,"Katza_9_2015-10-22","Lior Avidan","Shahar Malamud",NA
+"48","Katza",10,"2015",2015-10-22,"Katza_10_2015-10-22","Hagar yancovitch shalom","Shahar Malamud",NA
+"49","Katza",11,"2015",2015-10-22,"Katza_11_2015-10-22","Hagar yancovitch shalom","Ofri Mann",NA
+"50","Katza",12,"2015",2015-10-22,"Katza_12_2015-10-22","Hagar yancovitch shalom","Ofri Mann",NA
+"51","Katza",14,"2015",2015-10-22,"Katza_14_2015-10-22","Hagar yancovitch shalom","Shahar Malamud",NA
+"52","Katza",15,"2015",2015-10-22,"Katza_15_2015-10-22","Hagar yancovitch shalom","Shahar Malamud",NA
+"53","Katza",16,"2015",2015-10-22,"Katza_16_2015-10-22","Hagar yancovitch shalom","Shahar Malamud",NA
+"54","Katza",17,"2015",2015-10-22,"Katza_17_2015-10-22","Idan Doyev","Renanel Pickholtz",NA
+"55","Katza",18,"2015",2015-10-22,"Katza_18_2015-10-22","Itai Granot","Ori Frid",NA
+"56","NR",1,"2016",2016-09-19,"NR_1_2016-09-19","Lior Avidan","Ofri Mann",NA
+"57","NR",2,"2016",2016-09-19,"NR_2_2016-09-19","Ofri Mann","Noam Sommerfeld",NA
+"58","NR",3,"2016",2016-09-19,"NR_3_2016-09-19","Noam Sommerfeld","Ofri Mann",NA
+"59","NR",4,"2016",2016-09-19,"NR_4_2016-09-19","Roi Holzman","Inbal Gamliel",NA
+"60","NR",5,"2016",2016-09-19,"NR_5_2016-09-19","Liraz Levi","Hagar yancovitch shalom",NA
+"61","NR",6,"2016",2016-09-19,"NR_6_2016-09-19","Roi Holzman","Inbal Gamliel",NA
+"62","NR",7,"2016",2016-09-19,"NR_7_2016-09-19","Liraz Levi","Hagar yancovitch shalom",NA
+"63","NR",8,"2016",2016-09-19,"NR_8_2016-09-19","Yoni Belmaker",NA,NA
+"64","NR",9,"2016",2016-09-19,"NR_9_2016-09-19","Corrine Avidan","Lior Avidan",NA
+"65","NR",10,"2016",2016-09-19,"NR_10_2016-09-19","Corrine Avidan","Lior Avidan",NA
+"66","NR",11,"2016",2016-09-19,"NR_11_2016-09-19","Ori Frid","Jenny Tynyakov",NA
+"67","NR",12,"2016",2016-09-19,"NR_12_2016-09-19","Shahar Malamud","Renanel Pickholtz",NA
+"68","NR",13,"2016",2016-09-19,"NR_13_2016-09-19","Shahar Malamud","Renanel Pickholtz",NA
+"69","NR",14,"2016",2016-09-19,"NR_14_2016-09-19","Ori Frid","Jenny Tynyakov",NA
+"70","NR",15,"2016",2016-09-19,"NR_15_2016-09-19","Hezi Buba","Noam Ben Moshe",NA
+"71","NR",16,"2016",2016-09-19,"NR_16_2016-09-19","Noa Moshkowitz","Tal Gavriel",NA
+"72","NR",17,"2016",2016-09-19,"NR_17_2016-09-19","Noa Moshkowitz","Tal Gavriel",NA
+"73","Caves",1,"2016",2016-09-20,"Caves_1_2016-09-20","Noam Sommerfeld","Liraz Levi",NA
+"74","Caves",2,"2016",2016-09-20,"Caves_2_2016-09-20","Noam Sommerfeld","Liraz Levi",NA
+"75","Caves",3,"2016",2016-09-20,"Caves_3_2016-09-20","Hagar yancovitch shalom","Noa Moshkowitz",NA
+"76","Caves",4,"2016",2016-09-20,"Caves_4_2016-09-20","Hagar yancovitch shalom","Noa Moshkowitz",NA
+"77","Caves",5,"2016",2016-09-20,"Caves_5_2016-09-20","Ori Frid","Renanel Pickholtz",NA
+"78","Caves",6,"2016",2016-09-20,"Caves_6_2016-09-20","Renanel Pickholtz",NA,NA
+"79","Caves",7,"2016",2016-09-20,"Caves_7_2016-09-20","Shahar Malamud","Noam Ben Moshe",NA
+"80","Caves",8,"2016",2016-09-20,"Caves_8_2016-09-20","Shahar Malamud","Noam Ben Moshe",NA
+"81","Caves",9,"2016",2016-09-20,"Caves_9_2016-09-20","Lior Avidan","Corrine Avidan",NA
+"82","Caves",10,"2016",2016-09-20,"Caves_10_2016-09-20","Lior Avidan","Corrine Avidan",NA
+"83","Caves",11,"2016",2016-09-20,"Caves_11_2016-09-20","Lior Avidan","Corrine Avidan",NA
+"84","Caves",12,"2016",2016-09-20,"Caves_12_2016-09-20","Tal Gavriel","Inbal Gamliel","Yoni Belmaker"
+"85","Caves",13,"2016",2016-09-20,"Caves_13_2016-09-20","Tal Gavriel","Inbal Gamliel","Yoni Belmaker"
+"86","Caves",14,"2016",2016-09-20,"Caves_14_2016-09-20","Tal Gavriel","Inbal Gamliel","Yoni Belmaker"
+"87","Caves",15,"2016",2016-09-20,"Caves_15_2016-09-20","Roi Holzman","Jenny Tynyakov",NA
+"88","Caves",16,"2016",2016-09-20,"Caves_16_2016-09-20","Roi Holzman","Jenny Tynyakov",NA
+"89","Caves",17,"2016",2016-09-20,"Caves_17_2016-09-20","Roi Holzman","Jenny Tynyakov",NA
+"90","Princess",1,"2016",2016-09-21,"Princess_1_2016-09-21","Ori Frid","Hagar yancovitch shalom",NA
+"91","Princess",2,"2016",2016-09-21,"Princess_2_2016-09-21","Ori Frid","Hagar yancovitch shalom",NA
+"92","Princess",3,"2016",2016-09-21,"Princess_3_2016-09-21","Inbal Gamliel","Hezi Buba",NA
+"93","Princess",4,"2016",2016-09-21,"Princess_4_2016-09-21","Lior Avidan","Tal Gavriel",NA
+"94","Princess",5,"2016",2016-09-21,"Princess_5_2016-09-21","Lior Avidan","Tal Gavriel",NA
+"95","Princess",6,"2016",2016-09-21,"Princess_6_2016-09-21","Liraz Levi","Jenny Tynyakov",NA
+"96","Princess",7,"2016",2016-09-21,"Princess_7_2016-09-21","Liraz Levi","Jenny Tynyakov",NA
+"97","Princess",8,"2016",2016-09-21,"Princess_8_2016-09-21","Corrine Avidan","Roi Holzman",NA
+"98","Princess",9,"2016",2016-09-21,"Princess_9_2016-09-21","Corrine Avidan","Roi Holzman",NA
+"99","Princess",10,"2016",2016-09-21,"Princess_10_2016-09-21","Noa Moshkowitz",NA,NA
+"100","Princess",11,"2016",2016-09-21,"Princess_11_2016-09-21","Adi Barash","Ofri Mann",NA
+"101","Princess",12,"2016",2016-09-21,"Princess_12_2016-09-21","Adi Barash","Ofri Mann",NA
+"102","Princess",13,"2016",2016-09-21,"Princess_13_2016-09-21","Inbal Gamliel","Hezi Buba",NA
+"103","Princess",15,"2016",2016-09-21,"Princess_15_2016-09-21","Shahar Malamud","Noam Sommerfeld",NA
+"104","Princess",16,"2016",2016-09-21,"Princess_16_2016-09-21","Shahar Malamud","Noam Sommerfeld",NA
+"105","Princess",17,"2016",2016-09-21,"Princess_17_2016-09-21","Noa Moshkowitz",NA,NA
+"106","Princess",18,"2016",2016-09-21,"Princess_18_2016-09-21","Inbal Gamliel","Hezi Buba",NA
+"107","Princess",19,"2016",2016-09-21,"Princess_19_2016-09-21","Inbal Gamliel","Hezi Buba",NA
+"108","Princess",21,"2016",2016-09-21,"Princess_21_2016-09-21","Lior Avidan","Tal Gavriel",NA
+"109","Katza",1,"2016",2016-09-22,"Katza_1_2016-09-22","Jenny Tynyakov","Shahar Malamud",NA
+"110","Katza",2,"2016",2016-09-22,"Katza_2_2016-09-22","Jenny Tynyakov","Shahar Malamud",NA
+"111","Katza",3,"2016",2016-09-22,"Katza_3_2016-09-22","Hagar yancovitch shalom","Hezi Buba",NA
+"112","Katza",4,"2016",2016-09-22,"Katza_4_2016-09-22","Hagar yancovitch shalom","Hezi Buba",NA
+"113","Katza",5,"2016",2016-09-22,"Katza_5_2016-09-22","Corrine Avidan","Ori Frid",NA
+"114","Katza",6,"2016",2016-09-22,"Katza_6_2016-09-22","Corrine Avidan","Ori Frid",NA
+"115","Katza",7,"2016",2016-09-22,"Katza_7_2016-09-22","Corrine Avidan","Ori Frid",NA
+"116","Katza",8,"2016",2016-09-22,"Katza_8_2016-09-22","Lior Avidan","Adi Barash",NA
+"117","Katza",9,"2016",2016-09-22,"Katza_9_2016-09-22","Lior Avidan","Adi Barash",NA
+"118","Katza",10,"2016",2016-09-22,"Katza_10_2016-09-22","Lior Avidan","Adi Barash",NA
+"119","Katza",11,"2016",2016-09-22,"Katza_11_2016-09-22","Noam Sommerfeld","Roi Holzman",NA
+"120","Katza",12,"2016",2016-09-22,"Katza_12_2016-09-22","Noam Sommerfeld","Roi Holzman",NA
+"121","Katza",14,"2016",2016-09-22,"Katza_14_2016-09-22","Noam Sommerfeld","Roi Holzman",NA
+"122","Katza",15,"2016",2016-09-22,"Katza_15_2016-09-22","Hagar yancovitch shalom","Hezi Buba",NA
+"123","Katza",16,"2016",2016-09-22,"Katza_16_2016-09-22","Hagar yancovitch shalom","Hezi Buba",NA
+"124","Katza",17,"2016",2016-09-22,"Katza_17_2016-09-22","Jenny Tynyakov","Shahar Malamud",NA
+"125","Katza",18,"2016",2016-09-22,"Katza_18_2016-09-22","Corrine Avidan","Ori Frid",NA
+"126","Katza",19,"2016",2016-09-22,"Katza_19_2016-09-22","Liraz Levi","Ofri Mann",NA
+"127","Katza",20,"2016",2016-09-22,"Katza_20_2016-09-22","Liraz Levi","Ofri Mann",NA
+"128","Katza",21,"2016",2016-09-22,"Katza_21_2016-09-22","Liraz Levi","Ofri Mann",NA
+"129","Katza",22,"2016",2016-09-22,"Katza_22_2016-09-22","Noa Moshkowitz",NA,NA
+"130","Katza",23,"2016",2016-09-22,"Katza_23_2016-09-22","Noa Moshkowitz",NA,NA
+"131","Katza",24,"2016",2016-09-22,"Katza_24_2016-09-22","Noa Moshkowitz",NA,NA
+"132","Katza",1,"2017",2017-09-26,"Katza_1_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"133","Katza",2,"2017",2017-09-26,"Katza_2_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"134","Katza",3,"2017",2017-09-26,"Katza_3_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"135","Katza",4,"2017",2017-09-26,"Katza_4_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"136","Katza",5,"2017",2017-09-26,"Katza_5_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"137","Katza",6,"2017",2017-09-26,"Katza_6_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"138","Katza",7,"2017",2017-09-26,"Katza_7_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"139","Katza",8,"2017",2017-09-26,"Katza_8_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"140","Katza",9,"2017",2017-09-26,"Katza_9_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"141","Katza",10,"2017",2017-09-26,"Katza_10_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"142","Katza",11,"2017",2017-09-26,"Katza_11_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"143","Katza",12,"2017",2017-09-26,"Katza_12_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"144","Katza",14,"2017",2017-09-26,"Katza_14_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"145","Katza",15,"2017",2017-09-26,"Katza_15_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"146","Katza",16,"2017",2017-09-26,"Katza_16_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"147","Katza",17,"2017",2017-09-26,"Katza_17_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"148","Katza",18,"2017",2017-09-26,"Katza_18_2017-09-26","Renanel Pickholtz","Shahar Malamud",NA
+"149","Katza",19,"2017",2017-09-26,"Katza_19_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"150","Katza",20,"2017",2017-09-26,"Katza_20_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"151","Katza",21,"2017",2017-09-26,"Katza_21_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"152","Katza",22,"2017",2017-09-26,"Katza_22_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"153","Katza",23,"2017",2017-09-26,"Katza_23_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"154","Katza",24,"2017",2017-09-26,"Katza_24_2017-09-26","Tal Gavriel","Noam Sommerfeld",NA
+"155","Princess",1,"2018",2018-09-03,"Princess_1_2018-09-03","Sarah Ohayon","Renanel Pickholtz",NA
+"156","Princess",2,"2018",2018-09-03,"Princess_2_2018-09-03","Shahar Malamud",NA,NA
+"157","Princess",3,"2018",2018-09-03,"Princess_3_2018-09-03","Shahar Chaikin","Yoni Belmaker",NA
+"158","Princess",4,"2018",2018-09-03,"Princess_4_2018-09-03","Roi Holzman","Ori Frid",NA
+"159","Princess",5,"2018",2018-09-03,"Princess_5_2018-09-03","Roi Holzman","Ori Frid",NA
+"160","Princess",6,"2018",2018-09-03,"Princess_6_2018-09-03","Roi Holzman","Ori Frid",NA
+"161","Princess",7,"2018",2018-09-03,"Princess_7_2018-09-03","Tal Perevolotsky","Mai Lazarus",NA
+"162","Princess",8,"2018",2018-09-03,"Princess_8_2018-09-03","Hezi Buba","Lior Avidan",NA
+"163","Princess",9,"2018",2018-09-03,"Princess_9_2018-09-03","Hezi Buba","Lior Avidan",NA
+"164","Princess",10,"2018",2018-09-03,"Princess_10_2018-09-03","Corrine Avidan","Tal Gavriel",NA
+"165","Princess",11,"2018",2018-09-03,"Princess_11_2018-09-03","Corrine Avidan","Tal Gavriel",NA
+"166","Princess",12,"2018",2018-09-03,"Princess_12_2018-09-03","Corrine Avidan","Tal Gavriel",NA
+"167","Princess",13,"2018",2018-09-03,"Princess_13_2018-09-03","Shahar Chaikin","Yoni Belmaker",NA
+"168","Princess",14,"2018",2018-09-03,"Princess_14_2018-09-03","Shahar Malamud",NA,NA
+"169","Princess",15,"2018",2018-09-03,"Princess_15_2018-09-03","Tal Perevolotsky","Mai Lazarus",NA
+"170","Princess",16,"2018",2018-09-03,"Princess_16_2018-09-03","Mai Lazarus","Tal Perevolotsky",NA
+"171","Princess",17,"2018",2018-09-03,"Princess_17_2018-09-03","Hezi Buba","Lior Avidan",NA
+"172","Princess",18,"2018",2018-09-03,"Princess_18_2018-09-03","Shahar Malamud",NA,NA
+"173","Princess",19,"2018",2018-09-03,"Princess_19_2018-09-03","Sarah Ohayon","Renanel Pickholtz",NA
+"174","Princess",20,"2018",2018-09-03,"Princess_20_2018-09-03","Renanel Pickholtz","Sarah Ohayon",NA
+"175","Princess",21,"2018",2018-09-03,"Princess_21_2018-09-03","Shahar Chaikin","Yoni Belmaker",NA
+"176","Katza",1,"2018",2018-09-04,"Katza_1_2018-09-04","Sarah Ohayon","Itai Granot",NA
+"177","Katza",2,"2018",2018-09-04,"Katza_2_2018-09-04","Sarah Ohayon","Itai Granot",NA
+"178","Katza",3,"2018",2018-09-04,"Katza_3_2018-09-04","Liron Kraushar","Renanel Pickholtz",NA
+"179","Katza",4,"2018",2018-09-04,"Katza_4_2018-09-04","Renanel Pickholtz","Liron Kraushar",NA
+"180","Katza",5,"2018",2018-09-04,"Katza_5_2018-09-04","Hezi Buba","Tal Perevolotsky",NA
+"181","Katza",6,"2018",2018-09-04,"Katza_6_2018-09-04","Hezi Buba",NA,NA
+"182","Katza",7,"2018",2018-09-04,"Katza_7_2018-09-04","Hezi Buba",NA,NA
+"183","Katza",8,"2018",2018-09-04,"Katza_8_2018-09-04","Mai Lazarus","Tal Gavriel",NA
+"184","Katza",9,"2018",2018-09-04,"Katza_9_2018-09-04","Tal Gavriel","Mai Lazarus",NA
+"185","Katza",10,"2018",2018-09-04,"Katza_10_2018-09-04","Mai Lazarus","Tal Gavriel",NA
+"186","Katza",11,"2018",2018-09-04,"Katza_11_2018-09-04","Shahar Chaikin","Corrine Avidan",NA
+"187","Katza",12,"2018",2018-09-04,"Katza_12_2018-09-04","Shahar Chaikin","Corrine Avidan",NA
+"188","Katza",14,"2018",2018-09-04,"Katza_14_2018-09-04","Shahar Chaikin","Corrine Avidan",NA
+"189","Katza",15,"2018",2018-09-04,"Katza_15_2018-09-04","Shahar Chaikin","Corrine Avidan",NA
+"190","Katza",16,"2018",2018-09-04,"Katza_16_2018-09-04","Tal Gavriel","Mai Lazarus",NA
+"191","Katza",17,"2018",2018-09-04,"Katza_17_2018-09-04","Shahar Malamud","Itai Granot",NA
+"192","Katza",18,"2018",2018-09-04,"Katza_18_2018-09-04","Liron Kraushar","Renanel Pickholtz",NA
+"193","Katza",19,"2018",2018-09-04,"Katza_19_2018-09-04","Yoni Belmaker","Shahar Malamud",NA
+"194","Katza",20,"2018",2018-09-04,"Katza_20_2018-09-04","Yoni Belmaker","Shahar Malamud",NA
+"195","Katza",21,"2018",2018-09-04,"Katza_21_2018-09-04","Renanel Pickholtz","Liron Kraushar",NA
+"196","Katza",22,"2018",2018-09-04,"Katza_22_2018-09-04","Lior Avidan","Tal Perevolotsky",NA
+"197","Katza",23,"2018",2018-09-04,"Katza_23_2018-09-04","Tal Perevolotsky","Lior Avidan",NA
+"198","Katza",24,"2018",2018-09-04,"Katza_24_2018-09-04","Hezi Buba",NA,NA
+"199","Caves",1,"2018",2018-09-05,"Caves_1_2018-09-05","Liron Kraushar","Hezi Buba",NA
+"200","Caves",2,"2018",2018-09-05,"Caves_2_2018-09-05","Hezi Buba","Liron Kraushar",NA
+"201","Caves",3,"2018",2018-09-05,"Caves_3_2018-09-05","Tal Gavriel","Itai Granot",NA
+"202","Caves",4,"2018",2018-09-05,"Caves_4_2018-09-05","Tal Gavriel","Itai Granot",NA
+"203","Caves",5,"2018",2018-09-05,"Caves_5_2018-09-05","Renanel Pickholtz","Tal Perevolotsky",NA
+"204","Caves",6,"2018",2018-09-05,"Caves_6_2018-09-05","Tal Perevolotsky","Renanel Pickholtz",NA
+"205","Caves",7,"2018",2018-09-05,"Caves_7_2018-09-05","Lior Avidan","Corrine Avidan",NA
+"206","Caves",8,"2018",2018-09-05,"Caves_8_2018-09-05","Corrine Avidan","Lior Avidan",NA
+"207","Caves",9,"2018",2018-09-05,"Caves_9_2018-09-05","Sarah Ohayon","Mai Lazarus",NA
+"208","Caves",10,"2018",2018-09-05,"Caves_10_2018-09-05","Mai Lazarus","Sarah Ohayon",NA
+"209","Caves",11,"2018",2018-09-05,"Caves_11_2018-09-05","Sarah Ohayon","Mai Lazarus",NA
+"210","Caves",12,"2018",2018-09-05,"Caves_12_2018-09-05","Shahar Malamud","Shahar Chaikin",NA
+"211","Caves",13,"2018",2018-09-05,"Caves_13_2018-09-05","Shahar Malamud","Shahar Chaikin",NA
+"212","Caves",14,"2018",2018-09-05,"Caves_14_2018-09-05","Shahar Malamud","Shahar Chaikin",NA
+"213","Caves",15,"2018",2018-09-05,"Caves_15_2018-09-05","Tal Gavriel","Itai Granot",NA
+"214","Caves",16,"2018",2018-09-05,"Caves_16_2018-09-05","Liron Kraushar","Hezi Buba",NA
+"215","Caves",17,"2018",2018-09-05,"Caves_17_2018-09-05","Tal Perevolotsky","Renanel Pickholtz",NA
+"216","NR",1,"2018",2018-09-06,"NR_1_2018-09-06","Sarah Ohayon","Yoni Belmaker",NA
+"217","NR",2,"2018",2018-09-06,"NR_2_2018-09-06","Sarah Ohayon","Yoni Belmaker",NA
+"218","NR",3,"2018",2018-09-06,"NR_3_2018-09-06","Tal Gavriel","Liron Kraushar",NA
+"219","NR",4,"2018",2018-09-06,"NR_4_2018-09-06","Sarah Ohayon","Yoni Belmaker",NA
+"220","NR",5,"2018",2018-09-06,"NR_5_2018-09-06","Corrine Avidan","Ori Frid",NA
+"221","NR",6,"2018",2018-09-06,"NR_6_2018-09-06","Renanel Pickholtz","Shahar Chaikin",NA
+"222","NR",7,"2018",2018-09-06,"NR_7_2018-09-06","Tal Perevolotsky","Hezi Buba",NA
+"223","NR",8,"2018",2018-09-06,"NR_8_2018-09-06","Mai Lazarus","Shahar Malamud",NA
+"224","NR",9,"2018",2018-09-06,"NR_9_2018-09-06","Shahar Malamud","Mai Lazarus",NA
+"225","NR",10,"2018",2018-09-06,"NR_10_2018-09-06","Mai Lazarus","Shahar Malamud",NA
+"226","NR",11,"2018",2018-09-06,"NR_11_2018-09-06","Shahar Malamud","Mai Lazarus",NA
+"227","NR",12,"2018",2018-09-06,"NR_12_2018-09-06","Shahar Chaikin","Renanel Pickholtz",NA
+"228","NR",13,"2018",2018-09-06,"NR_13_2018-09-06","Tal Perevolotsky","Hezi Buba",NA
+"229","NR",14,"2018",2018-09-06,"NR_14_2018-09-06","Hezi Buba","Tal Perevolotsky",NA
+"230","NR",15,"2018",2018-09-06,"NR_15_2018-09-06","Shahar Chaikin","Renanel Pickholtz",NA
+"231","NR",16,"2018",2018-09-06,"NR_16_2018-09-06","Corrine Avidan","Ori Frid",NA
+"232","NR",17,"2018",2018-09-06,"NR_17_2018-09-06","Tal Gavriel","Liron Kraushar",NA
+"233","NR",NA,"2018",2018-09-06,"NR_north bridge reserve_2018-09-06","Tal Gavriel","Corrine Avidan",NA
+"234","NR",NA,"2018",2018-09-06,"NR_North bridge reserve_2018-09-06","Lior Avidan",NA,NA
+"235","NR",NA,"2018",2018-09-06,"NR_south bridge reserve_2018-09-06","Corrine Avidan","Tal Gavriel",NA
+"236","NR",NA,"2018",2018-09-06,"NR_South bridge reserve_2018-09-06","Lior Avidan",NA,NA
+"237","Caves",2,"2020",2020-06-14,"Caves_2_2020-06-14","Renanel Pickholtz","Hava Wandel",NA
+"238","Caves",3,"2020",2020-06-14,"Caves_3_2020-06-14","Mai Lazarus","Sarah Ohayon",NA
+"239","Caves",5,"2020",2020-06-14,"Caves_5_2020-06-14","Hezi Buba","Noy Shapira",NA
+"240","Caves",6,"2020",2020-06-14,"Caves_6_2020-06-14","Hezi Buba","Noy Shapira",NA
+"241","Caves",7,"2020",2020-06-14,"Caves_7_2020-06-14","Shira Salingre","Corrine Avidan",NA
+"242","Caves",8,"2020",2020-06-14,"Caves_8_2020-06-14","Shira Salingre","Corrine Avidan",NA
+"243","Caves",9,"2020",2020-06-14,"Caves_9_2020-06-14","Hezi Buba","Noy Shapira",NA
+"244","Caves",10,"2020",2020-06-14,"Caves_10_2020-06-14","Shira Salingre","Corrine Avidan",NA
+"245","Caves",11,"2020",2020-06-14,"Caves_11_2020-06-14","Tal Perevolotsky","Sagi Marom",NA
+"246","Caves",12,"2020",2020-06-14,"Caves_12_2020-06-14","Tal Perevolotsky","Sagi Marom",NA
+"247","Caves",13,"2020",2020-06-14,"Caves_13_2020-06-14","Shahar Chaikin","Shevy Rothman",NA
+"248","Caves",14,"2020",2020-06-14,"Caves_14_2020-06-14","Shahar Chaikin","Shevy Rothman",NA
+"249","Caves",15,"2020",2020-06-14,"Caves_15_2020-06-14","Mai Lazarus","Sarah Ohayon",NA
+"250","Caves",16,"2020",2020-06-14,"Caves_16_2020-06-14","Renanel Pickholtz","Hava Wandel",NA
+"251","Princess",1,"2020",2020-06-14,"Princess_1_2020-06-14","Tal Perevolotsky","Hava Wandel",NA
+"252","Princess",2,"2020",2020-06-14,"Princess_2_2020-06-14","Renanel Pickholtz","Sagi Marom",NA
+"253","Princess",4,"2020",2020-06-14,"Princess_4_2020-06-14","Yoni Belmaker","Shira Salingre",NA
+"254","Princess",5,"2020",2020-06-14,"Princess_5_2020-06-14","Yoni Belmaker","Shira Salingre",NA
+"255","Princess",6,"2020",2020-06-14,"Princess_6_2020-06-14","Roi Holzman","Corrine Avidan",NA
+"256","Princess",7,"2020",2020-06-14,"Princess_7_2020-06-14","Mai Lazarus","Shevy Rothman",NA
+"257","Princess",8,"2020",2020-06-14,"Princess_8_2020-06-14","Hezi Buba","Sarah Ohayon",NA
+"258","Princess",9,"2020",2020-06-14,"Princess_9_2020-06-14","Hezi Buba","Sarah Ohayon",NA
+"259","Princess",11,"2020",2020-06-14,"Princess_11_2020-06-14","Shahar Chaikin","Noy Shapira",NA
+"260","Princess",14,"2020",2020-06-14,"Princess_14_2020-06-14","Renanel Pickholtz","Sagi Marom",NA
+"261","Princess",15,"2020",2020-06-14,"Princess_15_2020-06-14","Roi Holzman","Corrine Avidan",NA
+"262","Princess",17,"2020",2020-06-14,"Princess_17_2020-06-14","Mai Lazarus","Shevy Rothman",NA
+"263","Princess",18,"2020",2020-06-14,"Princess_18_2020-06-14","Tal Perevolotsky","Hava Wandel",NA
+"264","Princess",19,"2020",2020-06-14,"Princess_19_2020-06-14","Tal Perevolotsky","Hava Wandel",NA
+"265","Princess",20,"2020",2020-06-14,"Princess_20_2020-06-14","Renanel Pickholtz","Sagi Marom",NA
+"266","Princess",23,"2020",2020-06-14,"Princess_23_2020-06-14","Shahar Chaikin","Noy Shapira",NA
+"267","Katza",1,"2020",2020-06-15,"Katza_1_2020-06-15","Hezi Buba","Shira Salingre",NA
+"268","Katza",2,"2020",2020-06-15,"Katza_2_2020-06-15","Hezi Buba","Shira Salingre",NA
+"269","Katza",5,"2020",2020-06-15,"Katza_5_2020-06-15","Renanel Pickholtz","Tal Perevolotsky",NA
+"270","Katza",6,"2020",2020-06-15,"Katza_6_2020-06-15","Shahar Malamud","Hava Wandel",NA
+"271","Katza",7,"2020",2020-06-15,"Katza_7_2020-06-15","Shahar Malamud","Hava Wandel",NA
+"272","Katza",20,"2020",2020-06-15,"Katza_20_2020-06-15","Corrine Avidan","Sagi Marom",NA
+"273","Katza",21,"2020",2020-06-15,"Katza_21_2020-06-15","Renanel Pickholtz","Tal Perevolotsky",NA
+"274","Katza",22,"2020",2020-06-15,"Katza_22_2020-06-15","Corrine Avidan","Sagi Marom",NA
+"275","Katza",23,"2020",2020-06-15,"Katza_23_2020-06-15","Shevy Rothman","Tal Gavriel",NA
+"276","Katza",24,"2020",2020-06-15,"Katza_24_2020-06-15","Shevy Rothman","Tal Gavriel",NA
+"277","NR",1,"2020",2020-06-15,"NR_1_2020-06-15","Corrine Avidan","Hava Wandel",NA
+"278","NR",2,"2020",2020-06-15,"NR_2_2020-06-15","Corrine Avidan","Hava Wandel",NA
+"279","NR",4,"2020",2020-06-15,"NR_4_2020-06-15","Shevy Rothman","Sagi Marom",NA
+"280","NR",5,"2020",2020-06-15,"NR_5_2020-06-15","Hezi Buba","Roi Holzman",NA
+"281","NR",7,"2020",2020-06-15,"NR_7_2020-06-15","Shahar Malamud","Shira Salingre",NA
+"282","NR",8,"2020",2020-06-15,"NR_8_2020-06-15","Tal Perevolotsky","Mai Lazarus",NA
+"283","NR",9,"2020",2020-06-15,"NR_9_2020-06-15","Tal Perevolotsky","Mai Lazarus",NA
+"284","NR",12,"2020",2020-06-15,"NR_12_2020-06-15","Renanel Pickholtz","Tal Gavriel",NA
+"285","NR",13,"2020",2020-06-15,"NR_13_2020-06-15","Renanel Pickholtz","Tal Gavriel",NA
+"286","NR",14,"2020",2020-06-15,"NR_14_2020-06-15","Shahar Malamud","Shira Salingre",NA
+"287","NR",15,"2020",2020-06-15,"NR_15_2020-06-15","Shevy Rothman","Sagi Marom",NA
+"288","NR",16,"2020",2020-06-15,"NR_16_2020-06-15","Hezi Buba","Roi Holzman",NA
+"289","Caves",1,"2020",2020-10-12,"Caves_1_2020-10-12","Shahar Chaikin","Yamit Romano",NA
+"290","Caves",2,"2020",2020-10-12,"Caves_2_2020-10-12","Shahar Chaikin","Yamit Romano",NA
+"291","Caves",3,"2020",2020-10-12,"Caves_3_2020-10-12","Yoni Belmaker","Rei Diga",NA
+"292","Caves",4,"2020",2020-10-12,"Caves_4_2020-10-12","Tal Gavriel","Liron Kraushar",NA
+"293","Caves",5,"2020",2020-10-12,"Caves_5_2020-10-12","Hava Wandel","Roi Holzman",NA
+"294","Caves",6,"2020",2020-10-12,"Caves_6_2020-10-12","Hava Wandel","Roi Holzman",NA
+"295","Caves",7,"2020",2020-10-12,"Caves_7_2020-10-12","Shevy Rothman","Sarah Ohayon",NA
+"296","Caves",8,"2020",2020-10-12,"Caves_8_2020-10-12","Shevy Rothman","Sarah Ohayon",NA
+"297","Caves",9,"2020",2020-10-12,"Caves_9_2020-10-12","Hezi Buba","Sagi Marom",NA
+"298","Caves",10,"2020",2020-10-12,"Caves_10_2020-10-12","Hezi Buba","Sagi Marom",NA
+"299","Caves",11,"2020",2020-10-12,"Caves_11_2020-10-12","Hezi Buba","Sagi Marom",NA
+"300","Caves",12,"2020",2020-10-12,"Caves_12_2020-10-12","Mai Lazarus","Tal Perevolotsky",NA
+"301","Caves",13,"2020",2020-10-12,"Caves_13_2020-10-12","Mai Lazarus","Tal Perevolotsky",NA
+"302","Caves",14,"2020",2020-10-12,"Caves_14_2020-10-12","Mai Lazarus","Tal Perevolotsky",NA
+"303","Caves",15,"2020",2020-10-12,"Caves_15_2020-10-12","Yoni Belmaker","Rei Diga",NA
+"304","Caves",16,"2020",2020-10-12,"Caves_16_2020-10-12","Shahar Chaikin","Yamit Romano",NA
+"305","Caves",17,"2020",2020-10-12,"Caves_17_2020-10-12","Tal Gavriel","Liron Kraushar",NA
+"306","NR",1,"2020",2020-10-12,"NR_1_2020-10-12","Shahar Chaikin","Rei Diga",NA
+"307","NR",2,"2020",2020-10-12,"NR_2_2020-10-12","Shahar Chaikin","Rei Diga",NA
+"308","NR",3,"2020",2020-10-12,"NR_3_2020-10-12","Yoni Belmaker","Yamit Romano",NA
+"309","NR",4,"2020",2020-10-12,"NR_4_2020-10-12","Yoni Belmaker","Yamit Romano",NA
+"310","NR",5,"2020",2020-10-12,"NR_5_2020-10-12","Shevy Rothman","Liron Kraushar",NA
+"311","NR",7,"2020",2020-10-12,"NR_7_2020-10-12","Hezi Buba","Roi Holzman",NA
+"312","NR",8,"2020",2020-10-12,"NR_8_2020-10-12","Tal Gavriel","Sagi Marom",NA
+"313","NR",9,"2020",2020-10-12,"NR_9_2020-10-12","Tal Gavriel","Sagi Marom",NA
+"314","NR",10,"2020",2020-10-12,"NR_10_2020-10-12","Tal Perevolotsky","Sarah Ohayon",NA
+"315","NR",11,"2020",2020-10-12,"NR_11_2020-10-12","Tal Perevolotsky","Sarah Ohayon",NA
+"316","NR",12,"2020",2020-10-12,"NR_12_2020-10-12","Mai Lazarus","Hava Wandel",NA
+"317","NR",13,"2020",2020-10-12,"NR_13_2020-10-12","Mai Lazarus","Hava Wandel",NA
+"318","NR",14,"2020",2020-10-12,"NR_14_2020-10-12","Hezi Buba","Roi Holzman",NA
+"319","NR",15,"2020",2020-10-12,"NR_15_2020-10-12","Yoni Belmaker","Yamit Romano",NA
+"320","NR",16,"2020",2020-10-12,"NR_16_2020-10-12","Shevy Rothman","Liron Kraushar",NA
+"321","NR",17,"2020",2020-10-12,"NR_17_2020-10-12","Shahar Chaikin","Rei Diga",NA
+"322","NR",18,"2020",2020-10-12,"NR_18_2020-10-12","Tal Perevolotsky","Sarah Ohayon",NA
+"323","Katza",1,"2020",2020-10-13,"Katza_1_2020-10-13","Hava Wandel","Roi Holzman",NA
+"324","Katza",2,"2020",2020-10-13,"Katza_2_2020-10-13","Hava Wandel","Roi Holzman",NA
+"325","Katza",3,"2020",2020-10-13,"Katza_3_2020-10-13","Hezi Buba","Yamit Romano",NA
+"326","Katza",4,"2020",2020-10-13,"Katza_4_2020-10-13","Sarah Ohayon","Liron Kraushar",NA
+"327","Katza",5,"2020",2020-10-13,"Katza_5_2020-10-13","Hezi Buba","Yamit Romano",NA
+"328","Katza",6,"2020",2020-10-13,"Katza_6_2020-10-13","Sarah Ohayon","Liron Kraushar",NA
+"329","Katza",7,"2020",2020-10-13,"Katza_7_2020-10-13","Shevy Rothman","Sagi Marom",NA
+"330","Katza",8,"2020",2020-10-13,"Katza_8_2020-10-13","Sarah Ohayon","Sagi Marom",NA
+"331","Katza",9,"2020",2020-10-13,"Katza_9_2020-10-13","Sarah Ohayon","Sagi Marom",NA
+"332","Katza",10,"2020",2020-10-13,"Katza_10_2020-10-13","Shevy Rothman","Yamit Romano",NA
+"333","Katza",11,"2020",2020-10-13,"Katza_11_2020-10-13","Hezi Buba","Shira Salingre",NA
+"334","Katza",12,"2020",2020-10-13,"Katza_12_2020-10-13","Hezi Buba","Shira Salingre",NA
+"335","Katza",14,"2020",2020-10-13,"Katza_14_2020-10-13","Tal Perevolotsky","Roi Holzman",NA
+"336","Katza",15,"2020",2020-10-13,"Katza_15_2020-10-13","Tal Perevolotsky","Roi Holzman",NA
+"337","Katza",16,"2020",2020-10-13,"Katza_16_2020-10-13","Shevy Rothman","Yamit Romano",NA
+"338","Katza",17,"2020",2020-10-13,"Katza_17_2020-10-13","Hava Wandel","Liron Kraushar",NA
+"339","Katza",18,"2020",2020-10-13,"Katza_18_2020-10-13","Hava Wandel","Liron Kraushar",NA
+"340","Katza",19,"2020",2020-10-13,"Katza_19_2020-10-13","Hava Wandel","Roi Holzman",NA
+"341","Katza",20,"2020",2020-10-13,"Katza_20_2020-10-13","Tal Perevolotsky","Shira Salingre",NA
+"342","Katza",21,"2020",2020-10-13,"Katza_21_2020-10-13","Hezi Buba","Yamit Romano",NA
+"343","Katza",22,"2020",2020-10-13,"Katza_22_2020-10-13","Tal Perevolotsky","Shira Salingre",NA
+"344","Katza",23,"2020",2020-10-13,"Katza_23_2020-10-13","Shevy Rothman","Sagi Marom",NA
+"345","Katza",24,"2020",2020-10-13,"Katza_24_2020-10-13","Shevy Rothman","Sagi Marom",NA
+"346","Princess",1,"2020",2020-10-13,"Princess_1_2020-10-13","Hezi Buba","Shahar Chaikin",NA
+"347","Princess",2,"2020",2020-10-13,"Princess_2_2020-10-13","Tal Gavriel","Sarah Ohayon",NA
+"348","Princess",3,"2020",2020-10-13,"Princess_3_2020-10-13","Tal Perevolotsky","Rei Diga",NA
+"349","Princess",4,"2020",2020-10-13,"Princess_4_2020-10-13","Shevy Rothman","Shira Salingre",NA
+"350","Princess",5,"2020",2020-10-13,"Princess_5_2020-10-13","Shevy Rothman","Shira Salingre",NA
+"351","Princess",6,"2020",2020-10-13,"Princess_6_2020-10-13","Mai Lazarus","Yamit Romano",NA
+"352","Princess",7,"2020",2020-10-13,"Princess_7_2020-10-13","Hava Wandel","Sagi Marom",NA
+"353","Princess",13,"2020",2020-10-13,"Princess_13_2020-10-13","Tal Perevolotsky","Rei Diga",NA
+"354","Princess",14,"2020",2020-10-13,"Princess_14_2020-10-13","Tal Gavriel","Sarah Ohayon",NA
+"355","Princess",15,"2020",2020-10-13,"Princess_15_2020-10-13","Mai Lazarus","Yamit Romano",NA
+"356","Princess",16,"2020",2020-10-13,"Princess_16_2020-10-13","Hava Wandel","Sagi Marom",NA
+"357","Princess",18,"2020",2020-10-13,"Princess_18_2020-10-13","Hezi Buba","Shahar Chaikin",NA
+"358","Princess",19,"2020",2020-10-13,"Princess_19_2020-10-13","Hezi Buba","Shahar Chaikin",NA
+"359","Princess",20,"2020",2020-10-13,"Princess_20_2020-10-13","Yoni Belmaker","Liron Kraushar",NA
+"360","Princess",22,"2020",2020-10-13,"Princess_22_2020-10-13","Yoni Belmaker","Liron Kraushar",NA
+"361","NR",NA,"2020",2020-10-14,"NR_Tamar_2020-10-14","Sarah Ohayon","Yamit Romano",NA
+"362","Princess",8,"2020",2020-10-14,"Princess_8_2020-10-14","Tal Perevolotsky","Sagi Marom",NA
+"363","Princess",9,"2020",2020-10-14,"Princess_9_2020-10-14","Tal Perevolotsky","Sagi Marom",NA
+"364","Princess",11,"2020",2020-10-14,"Princess_11_2020-10-14","Shevy Rothman","Hava Wandel",NA
+"365","Princess",12,"2020",2020-10-14,"Princess_12_2020-10-14","Shevy Rothman","Hava Wandel",NA
+"366","Princess",17,"2020",2020-10-14,"Princess_17_2020-10-14","Tal Perevolotsky","Sagi Marom",NA
+"367","Princess",23,"2020",2020-10-14,"Princess_23_2020-10-14","Shevy Rothman","Hava Wandel",NA
+"368","North beach",1,"2020",2020-10-15,"North beach_1_2020-10-15","Mai Lazarus","Shira Salingre",NA
+"369","North beach",2,"2020",2020-10-15,"North beach_2_2020-10-15","Mai Lazarus","Shira Salingre",NA
+"370","NR",1,"2021",2021-06-21,"NR_1_2021-06-21","Hezi Buba","Sagi Marom",NA
+"371","NR",2,"2021",2021-06-21,"NR_2_2021-06-21","Tal Perevolotsky","Noy Shapira",NA
+"372","NR",3,"2021",2021-06-21,"NR_3_2021-06-21","Mai Lazarus","Shir Bar",NA
+"373","NR",4,"2021",2021-06-21,"NR_4_2021-06-21","Hezi Buba","Sagi Marom",NA
+"374","NR",5,"2021",2021-06-21,"NR_5_2021-06-21","Tal Gavriel",NA,NA
+"375","NR",7,"2021",2021-06-21,"NR_7_2021-06-21","Tal Perevolotsky","Noy Shapira",NA
+"376","NR",8,"2021",2021-06-21,"NR_8_2021-06-21","Mai Lazarus","Shir Bar",NA
+"377","NR",9,"2021",2021-06-21,"NR_9_2021-06-21","Mai Lazarus","Shir Bar",NA
+"378","NR",10,"2021",2021-06-21,"NR_10_2021-06-21","Tal Gavriel",NA,NA
+"379","NR",11,"2021",2021-06-21,"NR_11_2021-06-21","Tal Gavriel",NA,NA
+"380","NR",12,"2021",2021-06-21,"NR_12_2021-06-21","Hezi Buba","Sagi Marom",NA
+"381","NR",13,"2021",2021-06-21,"NR_13_2021-06-21","Hezi Buba","Sagi Marom",NA
+"382","NR",14,"2021",2021-06-21,"NR_14_2021-06-21","Tal Perevolotsky","Noy Shapira",NA
+"383","NR",15,"2021",2021-06-21,"NR_15_2021-06-21","Mai Lazarus","Shir Bar",NA
+"384","NR",16,"2021",2021-06-21,"NR_16_2021-06-21","Tal Gavriel",NA,NA
+"385","NR",17,"2021",2021-06-21,"NR_17_2021-06-21","Tal Perevolotsky","Noy Shapira",NA
+"386","NR",18,"2021",2021-06-21,"NR_18_2021-06-21","Tal Gavriel",NA,NA
+"387","Caves",1,"2021",2021-06-22,"Caves_1_2021-06-22","Tal Perevolotsky","Sagi Marom",NA
+"388","Caves",2,"2021",2021-06-22,"Caves_2_2021-06-22","Tal Perevolotsky","Sagi Marom",NA
+"389","Caves",3,"2021",2021-06-22,"Caves_3_2021-06-22","Mai Lazarus","Noy Shapira",NA
+"390","Caves",4,"2021",2021-06-22,"Caves_4_2021-06-22","Hezi Buba","Yuval Goth",NA
+"391","Caves",5,"2021",2021-06-22,"Caves_5_2021-06-22","Tal Gavriel","Julia Cerutti",NA
+"392","Caves",6,"2021",2021-06-22,"Caves_6_2021-06-22","Tal Gavriel","Julia Cerutti",NA
+"393","Caves",7,"2021",2021-06-22,"Caves_7_2021-06-22","Tal Perevolotsky","Sagi Marom",NA
+"394","Caves",8,"2021",2021-06-22,"Caves_8_2021-06-22","Tal Perevolotsky","Sagi Marom",NA
+"395","Caves",9,"2021",2021-06-22,"Caves_9_2021-06-22","Hezi Buba","Yuval Goth",NA
+"396","Caves",10,"2021",2021-06-22,"Caves_10_2021-06-22","Hezi Buba","Yuval Goth",NA
+"397","Caves",11,"2021",2021-06-22,"Caves_11_2021-06-22","Mai Lazarus","Noy Shapira",NA
+"398","Caves",12,"2021",2021-06-22,"Caves_12_2021-06-22","Mai Lazarus","Noy Shapira",NA
+"399","Caves",13,"2021",2021-06-22,"Caves_13_2021-06-22","Tal Gavriel","Julia Cerutti",NA
+"400","Caves",14,"2021",2021-06-22,"Caves_14_2021-06-22","Tal Gavriel","Julia Cerutti",NA
+"401","Caves",15,"2021",2021-06-22,"Caves_15_2021-06-22","Mai Lazarus","Noy Shapira",NA
+"402","Caves",16,"2021",2021-06-22,"Caves_16_2021-06-22","Tal Perevolotsky","Sagi Marom",NA
+"403","Caves",17,"2021",2021-06-22,"Caves_17_2021-06-22","Hezi Buba","Yuval Goth",NA
+"404","Princess",1,"2021",2021-06-23,"Princess_1_2021-06-23","Hezi Buba","Noy Shapira",NA
+"405","Princess",2,"2021",2021-06-23,"Princess_2_2021-06-23","Sagi Marom","Yuval Goth",NA
+"406","Princess",3,"2021",2021-06-23,"Princess_3_2021-06-23","Tal Gavriel","Shir Bar",NA
+"407","Princess",5,"2021",2021-06-23,"Princess_5_2021-06-23","Yoni Belmaker","Shahar Malamud",NA
+"408","Princess",6,"2021",2021-06-23,"Princess_6_2021-06-23","Yoni Belmaker","Shahar Malamud",NA
+"409","Princess",7,"2021",2021-06-23,"Princess_7_2021-06-23","Tal Gavriel","Shir Bar",NA
+"410","Princess",8,"2021",2021-06-23,"Princess_8_2021-06-23","Tal Gavriel","Shir Bar",NA
+"411","Princess",9,"2021",2021-06-23,"Princess_9_2021-06-23","Tal Gavriel","Shir Bar",NA
+"412","Princess",11,"2021",2021-06-23,"Princess_11_2021-06-23","Mai Lazarus","Tal Perevolotsky",NA
+"413","Princess",12,"2021",2021-06-23,"Princess_12_2021-06-23","Mai Lazarus","Tal Perevolotsky",NA
+"414","Princess",13,"2021",2021-06-23,"Princess_13_2021-06-23","Tal Gavriel","Shir Bar",NA
+"415","Princess",14,"2021",2021-06-23,"Princess_14_2021-06-23","Yoni Belmaker","Shahar Malamud",NA
+"416","Princess",15,"2021",2021-06-23,"Princess_15_2021-06-23","Hezi Buba","Noy Shapira",NA
+"417","Princess",16,"2021",2021-06-23,"Princess_16_2021-06-23","Hezi Buba","Noy Shapira",NA
+"418","Princess",17,"2021",2021-06-23,"Princess_17_2021-06-23","Mai Lazarus","Tal Perevolotsky",NA
+"419","Princess",18,"2021",2021-06-23,"Princess_18_2021-06-23","Sagi Marom","Yuval Goth",NA
+"420","Princess",19,"2021",2021-06-23,"Princess_19_2021-06-23","Hezi Buba","Noy Shapira",NA
+"421","Princess",20,"2021",2021-06-23,"Princess_20_2021-06-23","Sagi Marom","Yuval Goth",NA
+"422","Princess",22,"2021",2021-06-23,"Princess_22_2021-06-23","Sagi Marom","Yuval Goth",NA
+"423","Princess",23,"2021",2021-06-23,"Princess_23_2021-06-23","Tal Gavriel","Shir Bar",NA
+"424","Katza",1,"2021",2021-06-24,"Katza_1_2021-06-24","Yoni Belmaker","Yuval Goth",NA
+"425","Katza",2,"2021",2021-06-24,"Katza_2_2021-06-24","Yoni Belmaker","Yuval Goth",NA
+"426","Katza",3,"2021",2021-06-24,"Katza_3_2021-06-24","Sagi Marom","Roi Holzman",NA
+"427","Katza",4,"2021",2021-06-24,"Katza_4_2021-06-24","Sagi Marom","Roi Holzman",NA
+"428","Katza",5,"2021",2021-06-24,"Katza_5_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"429","Katza",6,"2021",2021-06-24,"Katza_6_2021-06-24","Sagi Marom","Roi Holzman",NA
+"430","Katza",7,"2021",2021-06-24,"Katza_7_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"431","Katza",8,"2021",2021-06-24,"Katza_8_2021-06-24","Hezi Buba","Shir Bar",NA
+"432","Katza",9,"2021",2021-06-24,"Katza_9_2021-06-24","Hezi Buba","Shir Bar",NA
+"433","Katza",10,"2021",2021-06-24,"Katza_10_2021-06-24","Hezi Buba","Shir Bar",NA
+"434","Katza",11,"2021",2021-06-24,"Katza_11_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"435","Katza",12,"2021",2021-06-24,"Katza_12_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"436","Katza",14,"2021",2021-06-24,"Katza_14_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"437","Katza",15,"2021",2021-06-24,"Katza_15_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"438","Katza",16,"2021",2021-06-24,"Katza_16_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"439","Katza",17,"2021",2021-06-24,"Katza_17_2021-06-24","Yoni Belmaker","Yuval Goth",NA
+"440","Katza",18,"2021",2021-06-24,"Katza_18_2021-06-24","Sagi Marom","Roi Holzman",NA
+"441","Katza",19,"2021",2021-06-24,"Katza_19_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"442","Katza",20,"2021",2021-06-24,"Katza_20_2021-06-24","Hezi Buba","Shir Bar",NA
+"443","Katza",21,"2021",2021-06-24,"Katza_21_2021-06-24","Sagi Marom","Roi Holzman",NA
+"444","Katza",22,"2021",2021-06-24,"Katza_22_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"445","Katza",23,"2021",2021-06-24,"Katza_23_2021-06-24","Tal Gavriel","Shahar Malamud",NA
+"446","Katza",24,"2021",2021-06-24,"Katza_24_2021-06-24","Tal Gavriel","Shahar Malamud",NA

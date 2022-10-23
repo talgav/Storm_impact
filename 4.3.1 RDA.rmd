@@ -1,0 +1,186 @@
+---
+title: "4.3.1 RDA"
+author: "TG"
+date: "3 2 2021"
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+3) add the month to the sample
+
+```{r}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+
+```{r}
+all_fish <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface.Area,Max.depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data_all<-spread(all_fish,Species_2015,aboundance,fill = 0)
+
+wide_data_all<-na.omit(wide_data_all)
+```
+
+# RDA - ALL FISH
+
+wisconsin_wide_data_all<-wide_data_all 
+
+```{r}
+
+
+wisconsin_wide_data_all<- wisconsin(wide_data_all[,9:ncol(wide_data_all)])
+
+```
+
+
+```{r}
+rda_all_fish_wisconsin <- rda(wisconsin_wide_data_all  ~ Site +year_month + Surface.Area, data=wide_data_all)
+
+rda_all_fish_wisconsin
+
+
+plot(rda_all_fish_wisconsin, scaling = 2)
+
+plot(rda_all_fish_wisconsin, type = "n",scaling =2)
+abline(h = 0, v = 0, col = "white", lwd = 3)
+box()
+points(rda_all_fish_wisconsin, display = "species")
+text(rda_all_fish_wisconsin, display = "cn", col = "blue")
+
+
+```
+
+Lets do it for each Year seperatly
+
+2015
+
+```{r}
+data_2015 <- wide_data_all %>% filter(Year == "2015")
+wisconsin_2015<- wisconsin(data_2015[,9:ncol(wide_data_all)])
+
+rda_2015 <- rda(wisconsin_2015  ~ Site + Surface.Area+ Max.depth, data=data_2015)
+
+rda_2015
+
+plot(rda_2015, scaling = 2)
+text(rda_2015, display = "cn", col = "blue")
+
+
+
+plot(rda_2015, type = "n",scaling =2)
+abline(h = 0, v = 0, col = "white", lwd = 3)
+box()
+points(rda_2015, display = "species",col = "red",)
+points(rda_2015, display = "sites")
+text(rda_2015, display = "cn", col = "blue")
+
+```
+Error in match.arg(display, c("sites", "species", "wa", "lc", "bp", "cn", : 'arg' should be one of “sites”, “species”, “wa”, “lc”, “bp”, “cn”, “reg”
+
+```{r}
+rda_year<-list()
+
+
+wide_data_no_2017<-wide_data_all %>% filter(Year != "2017")
+
+for (i in unique(wide_data_no_2017$year_month)) {
+  
+  data<- wide_data_no_2017 %>%  filter(year_month == i)
+  wisconsin_data <- wisconsin(data[,9:ncol(data)])
+  
+  rda <- rda(wisconsin_data  ~ Site + Surface.Area + Max.depth, data= data)
+
+  rda_year[[i]]<-rda
+  
+  
+}
+
+plot(rda_year[[1]], scaling = 2,main = "2015" )
+text(rda_year[[1]], display = "cn", col = "blue")
+
+plot(rda_year[[2]], scaling = 2,main = "2016")
+text(rda_year[[2]], display = "cn", col = "blue")
+
+plot(rda_year[[3]], scaling = 2,main = "2018")
+text(rda_year[[3]], display = "cn", col = "blue")
+
+plot(rda_year[[4]], scaling = 2,main = "2020 a")
+text(rda_year[[4]], display = "cn", col = "blue")
+
+plot(rda_year[[5]], scaling = 2,main = "2020 b")
+text(rda_year[[5]], display = "cn", col = "blue")
+```
+
+
+```{r}
+rm(list=setdiff(ls(), c("one_observer","wide_data_all","wide_data_no_2017")))
+```

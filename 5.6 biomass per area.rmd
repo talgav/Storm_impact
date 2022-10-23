@@ -1,0 +1,184 @@
+---
+title: "5.6 biomass per area"
+author: "TG"
+date: "23 12 2021"
+output: html_document
+---
+
+
+
+
+```{r}
+load("fish_full_data.rdata")
+select <- dplyr::select
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+
+fish_k<-c("#669bbc","#336683","#1a4b66","#003049","#ed3140","#c1121f","#710912")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+```
+
+
+### general steps:
+
+1) filter confidence = 1
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+biomass_area<-fish_full_data
+biomass_area$Confidence[is.na(biomass_area$Confidence)]<-(0)
+biomass_area<- biomass_area %>% filter(Confidence < 1)
+
+```
+
+
+2) remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+biomass_area<-biomass_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+```
+
+3) keep one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(biomass_area$survey_id)) {
+  
+  data <- biomass_area %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+the connection between resident fish and surface area
+
+
+```{r}
+only_cryptic <- one_observer %>% filter(Status != "T")
+
+```
+
+
+4) unify the fish lenghts (to be log2 scale)
+
+```{r}
+only_cryptic$class <- with(only_cryptic,(ceiling(log(Length,2))))
+
+
+only_cryptic<-only_cryptic %>%
+  mutate(lenght_class =(2^class)) %>% relocate(lenght_class,.after = 12)
+
+only_cryptic$midpoint <- ((2^only_cryptic$class) + (2^(only_cryptic$class-1)))/2
+
+only_cryptic<-only_cryptic %>% relocate(midpoint,.after = 13) %>% relocate(class,.after = 14)
+
+
+```
+
+
+5) calculate the weight (g) per individual
+
+```{r}
+only_cryptic<- only_cryptic %>% mutate("true_weight_ind" =  a*Length^b,.after = 14) # to use only when compering years
+only_cryptic<- only_cryptic %>% mutate("class_weight_ind" =  a*midpoint^b,.after = 15)# to use only when compering sites
+
+
+# the weight for all ind in the same line
+
+only_cryptic<-only_cryptic %>%
+  mutate("true_weight_total"=true_weight_ind*Abundance,
+         "class_weight_total" = class_weight_ind*Abundance)
+```
+
+
+
+
+
+3) set the number of species per knoll
+
+
+```{r}
+
+biomass_knoll<- only_cryptic %>%
+  group_by(Site,Knoll,year_month,Surface_Area,Max_depth,coral_cover) %>% 
+  summarise("knoll_biomass_true" = sum(true_weight_total),
+            "knoll_biomass_class" = sum(class_weight_total))
+  
+  
+ggplot(data = biomass_knoll,aes(x=log(Surface_Area),y=log(knoll_biomass_class),color=Site)) +geom_point() +geom_smooth()
+
+
+```
+
+* ill leave 2007 where only kazza was sampled out
+
+```{r}
+biomass_knoll<-biomass_knoll %>% filter(Year != 2017)
+
+
+```
+
+add month 
+
+```{r}
+biomass_knoll$month<-month(biomass_knoll$Date)
+biomass_knoll$month<-as.factor(biomass_knoll$month)
+
+biomass_knoll$storm<-as.factor(biomass_knoll$storm)
+biomass_knoll$Season <- ifelse(biomass_knoll$month == 6,"Spring","Fall")
+
+biomass_knoll$Year<-as.factor(biomass_knoll$Year)
+biomass_knoll$Site<-as.factor(biomass_knoll$Site)
+```
+
+
+
+remove outlier knolls
+
+```{r}
+
+no_nr_outliar<-biomass_knoll %>% filter(knoll_id != "Katza_19",knoll_id != "NR_17")
+
+```
+
+best model from previos scrips (2.4 species area)
+

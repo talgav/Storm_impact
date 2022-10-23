@@ -1,0 +1,1059 @@
+---
+title: "5.3 fish rarefactions"
+author: "TG"
+date: "23 12 2021"
+output: html_document
+---
+
+# Load and preper data
+
+```{r}
+load("fish_full_data.rdata")
+load("survey_list.Rdata")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(Rarefy)
+library(rareNMtests)
+```
+
+1) set one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 1
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <1)
+
+```
+
+3) filter the north beach
+```{r}
+one_observer<-one_observer %>%
+  filter(Site !="North beach",
+         ! Knoll %in% c("Tamar","South bridge reserve","south bridge reserve",
+                        "North bridge reserve","north bridge reserve"))
+                                      
+```
+
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+SURVEYS<-one_observer %>% group_by(Site,year_month) %>%  summarise(knoll_number = n_distinct(Knoll))
+
+
+
+S1<-one_observer %>%select(Site,year_month,Knoll) %>% group_by(Site,year_month) %>%summarise (uni=unique(Knoll))
+
+
+
+#write.csv(SURVEYS,"fish_survey_list.csv")
+
+
+fish_list_appendix<-fish_full_data %>% select(Species,Species_2015,Family,Status) %>% distinct(Species,.keep_all = T) %>% arrange(Species)
+
+fish_list_appendix$Status<-ifelse(fish_list_appendix$Status=="T","Transient","Reef associated")
+
+#write.csv(fish_list_appendix,"fish_list_appendix.csv")
+```
+
+
+# Create wide data for 2015
+
+1. species by 2015 categories - wide_2015 (for each site comparison)
+
+
+```{r include=FALSE}
+all_fish_2015 <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_2015<-spread(all_fish_2015,Species_2015,aboundance,fill = 0)
+
+
+```
+
+### ibr models by site(vegan)  with schools
+
+```{r}
+
+#create the data
+
+ibr<-one_observer %>% filter(Year !="2017") %>% group_by(Site,Species_2015) %>% summarise(abundance= sum(Abundance))
+
+ibr<-spread(ibr,Species_2015,abundance,fill = 0)
+
+#playing a bit with the vegan functions
+
+ibr_max<-min(rowSums(ibr[,2:ncol(ibr)]))
+
+rarefy(ibr[,2:ncol(ibr)],ibr_max,se=TRUE)
+
+
+rare_index_steps<-rarefy(ibr[2:ncol(ibr)],se=T,sample=100)
+
+
+
+
+```
+
+
+
+### individual rarefaction curve with confidence interval pooled to the site level
+
+```{r}
+
+steps <- data.frame("ind" =  seq(10, ibr_max, by=10)) 
+rare_list<-list()
+loop<-1
+site_name<-ibr$Site
+
+for(i in 1:nrow(steps)){
+  
+  ind <- steps$ind[i]
+  
+ S<-rarefy(ibr[,2:ncol(ibr)], ind, se = TRUE)
+ S<-t(S)
+ S<-as.data.frame(S)
+ S$Site<-site_name
+ S$ind<-rep(ind)
+
+ rare_list[[loop]]  <- S
+ 
+ loop<-loop+1
+  
+}
+
+rarefection<-bind_rows(rare_list)
+
+
+
+
+ggplot(data = rarefection,aes(x=ind,y=S,color=Site))+geom_line(size=1.5)+
+   geom_ribbon(aes(ymin=S-se, ymax=S+se),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Individuals number") + ggtitle("Fish")+
+  ylab("Richness")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = color)
+
+
+#ggsave("fish_ibr.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+```
+
+#Fish sbr (with schools)
+
+
+```{r}
+srb_list<-list()
+loop<-1
+
+wide_2015<-wide_2015 %>% filter(Year !="2017")
+
+for (i in unique(wide_2015$Site)) {
+  
+  site<- wide_2015 %>% filter(Site == i)
+  
+  site_richness<-Rarefy::rare_alpha(site[9:ncol(site)],
+                          method="hill",
+                          q=0,
+                          random=200,
+                          mean = F)
+  
+  site_richness$Site<-rep(i)
+  site_richness$sample<-1:nrow(site_richness)
+  
+  
+  srb_list[[loop]]<-site_richness
+  loop<-loop+1
+  
+  
+}
+
+site_richness<-bind_rows(srb_list)
+
+
+ggplot(site_richness,aes(x= sample,y=Rarefaction,color=Site))+geom_line(size=1.2)+
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.05, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Richness")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = color)
+
+
+#ggsave("fish_sbr.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+
+#Fish shannon sbr (with schools)
+
+
+
+
+```{r}
+srb_list_shannon<-list()
+loop<-1
+
+wide_2015<-wide_2015 %>% filter(Year !="2017")
+
+for (i in unique(wide_2015$Site)) {
+  
+  site<- wide_2015 %>% filter(Site == i)
+  
+  site_shannon<-Rarefy::rare_alpha(site[9:ncol(site)],
+                          method="hill",
+                          q=1,
+                          random=200,
+                          mean = F)
+  
+  site_shannon$Site<-rep(i)
+  site_shannon$sample<-1:nrow(site_shannon)
+  
+  
+  srb_list_shannon[[loop]]<-site_shannon
+  loop<-loop+1
+  
+  
+}
+
+site_richness_shannon<-bind_rows(srb_list_shannon)
+
+
+
+ggplot(site_richness_shannon,aes(x= sample,y=Rarefaction,color=Site))+geom_line(size=1.2)+
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.05, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Shannon diversity")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = color)
+
+
+ggsave("fish_shannon_sbr.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+# SHANNON FOR SITE NO SCHOOLS
+
+
+```{r}
+
+srb_list_shannon_ns<-list()
+loop<-1
+
+wide_2015_ns<-wide_2015 %>% filter(Year !="2017")
+
+wide_2015_ns$`Pseudanthias spp.`<-NULL
+wide_2015_ns$`Chromis viridis`<-NULL
+wide_2015_ns$`Neopomacentrus miryae`<-NULL
+
+for (i in unique(wide_2015_ns$Site)) {
+  
+  site<- wide_2015_ns %>% filter(Site == i)
+  
+  site_shannon_ns<-Rarefy::rare_alpha(site[9:ncol(site)],
+                          method="hill",
+                          q=1,
+                          random=200,
+                          mean = F)
+  
+  site_shannon_ns$Site<-rep(i)
+  site_shannon_ns$sample<-1:nrow(site_shannon_ns)
+  
+  
+  srb_list_shannon_ns[[loop]]<-site_shannon_ns
+  loop<-loop+1
+  
+  
+}
+
+site_richness_shannon_ns<-bind_rows(srb_list_shannon_ns)
+
+
+ggplot(site_richness_shannon_ns,aes(x= sample,y=Rarefaction,color=Site))+geom_line(size=1.2)+
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.05, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish - no schools")+
+  ylab("Shannon diversity")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = color)
+
+
+ggsave("fish_shannon_sbr_no_schools.png", width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+
+# fish SBR for the full species list
+
+data prep
+
+```{r}
+all_fish <- one_observer %>%
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_fish<-spread(all_fish,Species,aboundance,fill = 0)
+
+wide_fish<-wide_fish %>%  filter(Year > 2017)
+
+```
+
+## site sbr full data
+
+```{r}
+srb_list_full<-list()
+loop<-1
+
+
+
+for (i in unique(wide_fish$Site)) {
+  
+  site<- wide_fish %>% filter(Site == i)
+  
+  site_richness_full<-Rarefy::rare_alpha(site[9:ncol(site)],
+                          method="hill",
+                          q=0,
+                          random=100,
+                          mean = F)
+  
+  site_richness_full$Site<-rep(i)
+  site_richness_full$sample<-1:nrow(site_richness_full)
+  
+  
+  srb_list_full[[loop]]<-site_richness_full
+  loop<-loop+1
+  
+  
+}
+
+site_richness_full<-bind_rows(srb_list_full)
+
+
+ggplot(site_richness_full,aes(x= sample,y=Rarefaction,color=Site))+geom_line(size=1.2)+
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.2, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Richness")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = color)
+
+
+ggsave("fish_sbr_full.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+
+## year sbr full data
+
+```{r}
+srb_list_year_full<-list()
+loop<-1
+
+
+
+for (i in unique(wide_fish$year_month)) {
+  
+  year<- wide_fish %>% filter(year_month == i)
+  
+  year_richness_full<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=0,
+                          random=100,
+                          mean = F)
+  
+  year_richness_full$Year<-rep(i)
+  year_richness_full$sample<-1:nrow(year_richness_full)
+  
+  
+  srb_list_year_full[[loop]]<-year_richness_full
+  loop<-loop+1
+  
+  
+}
+
+year_richness_full<-bind_rows(srb_list_year_full)
+
+
+ggplot(year_richness_full,aes(x= sample,y=Rarefaction,color=Year))+geom_line(size=1.2)+
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.05, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Richness")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = fish_all,name = "Year",
+                           labels = c(                                    "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+ggsave("fish_sbr_year_full.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+
+
+# hill number by site
+
+```{r}
+renyi_profile_site<-renyi(ibr[,2:ncol(ibr)],scales = c(0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, Inf), hill = T)
+
+renyi_data<-data.frame(t(renyi_profile_site))
+
+rownames(renyi_data)=NULL
+
+renyi_data$q<-c(0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, Inf)
+
+colnames(renyi_data)<-c("Caves","Katza","NR","Princess","Q")
+
+renyi_data<-gather(renyi_data,"Site","richness",1:4)
+
+renyi_data$Q<-ordered(renyi_data$Q,levels = c(0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, Inf))
+
+ggplot(renyi_data,aes(x=Q,y=richness,color = Site))+
+  geom_point(size=2)+
+  scale_color_manual(values = color)+
+  xlab("Diversity number")+
+  ylab("Diversity")+theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  ggtitle("Fish")
+  
+
+ggsave("hill_profile_fish.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+
+```
+
+
+
+
+#IBR by year
+
+ibr models by site(vegan)  with schools
+
+```{r}
+
+#create the data
+
+ibr_year<-one_observer %>% filter(Year !="2017") %>% group_by(year_month,Species_2015) %>% summarise(abundance= sum(Abundance))
+
+ibr_year<-spread(ibr_year,Species_2015,abundance,fill = 0)
+
+#playing a bit with the vegan functions
+
+ibr_max_year<-min(rowSums(ibr_year[,2:ncol(ibr_year)]))
+
+rarefy(ibr_year[,2:ncol(ibr_year)],ibr_max_year,se=TRUE)
+
+
+rare_index_steps<-rarefy(ibr_year[2:ncol(ibr_year)],se=T,sample=100)
+
+
+
+
+```
+
+
+
+individual rarefaction curve with confidence interval
+pooled to the site level
+
+```{r}
+
+steps_year <- data.frame("ind" =  seq(10, ibr_max_year , by=10)) 
+
+rare_list_year<-list()
+loop<-1
+Year<-ibr_year$year_month
+
+
+for(i in 1:nrow(steps_year)){
+  
+  ind <- steps_year$ind[i]
+  
+ S<-rarefy(ibr_year[,2:ncol(ibr_year)], ind, se = TRUE)
+ S<-t(S)
+ S<-as.data.frame(S)
+ S$Year<-Year
+ S$ind<-rep(ind)
+
+ rare_list_year[[loop]]  <- S
+ 
+ loop<-loop+1
+  
+}
+
+rarefection_year<-bind_rows(rare_list_year)
+
+
+
+
+ggplot(data = rarefection_year,aes(x=ind,y=S,color=Year))+geom_line(size=1.5)+
+   geom_ribbon(aes(ymin=S-se, ymax=S+se),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Individuals number") + ggtitle("Fish")+
+  ylab("Richness")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+
+#ggsave("fish_ibr_year.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+```
+
+# fish sbr by year
+
+
+
+```{r}
+
+l_type<-c("solid","solid","solid","twodash","solid","solid")
+
+srb_list_year<-list()
+loop<-1
+
+wide_2015<-wide_2015 %>% filter(Year !="2017")
+
+for (i in unique(wide_2015$year_month)) {
+  
+  year<- wide_2015 %>% filter(year_month == i)
+  
+  year_richness<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=0,
+                          random=100,
+                          mean = F)
+  
+  year_richness$Year<-rep(i)
+  year_richness$sample<-1:nrow(year_richness)
+  
+  
+  srb_list_year[[loop]]<-year_richness
+  loop<-loop+1
+  
+  
+}
+
+year_richness<-bind_rows(srb_list_year)
+
+labs(color  = "Year", linetype = "Year")
+
+
+ggplot(year_richness,aes(x= sample,y=Rarefaction,color=Year))+
+  geom_line(aes(color = Year, linetype = Year), size = 1.2) +
+  scale_linetype_manual(name = "Year",values = l_type,labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021")) +
+  geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Richness")+ 
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = fish_all,name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("fish_sbr_year.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+
+
+```
+
+### boxplot for rarefied richness
+
+Ill rarefied to 52 knolls as this is the lowest knoll number sampled by year
+
+```{r}
+rare_sbr<-year_richness %>% filter(sample == 52)
+
+
+ggplot(data = rare_sbr,aes(x=Year,y=Rarefaction,fill = Year))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=IC_low,ymax= IC_up),width =0.1)+
+  scale_fill_manual(values = fish_all)+
+  xlab("Year")+ 
+  ylab('Rarefied richness')+
+  theme_bw()+
+  geom_text(aes(label = sample,y=5), size = 7,color="White")+ 
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+    scale_x_discrete(labels = c("Fall 2015", "Fall 2016","Fall 2017",
+                                      "Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+#ggsave("fish_box_plot_sbr_year.png" , width = 10, height = 8, dpi = 300,path = "C:/Users/TalG/My Drive/PHD/chapter 1 strom effect/R Scripts")
+```
+
+
+
+
+# fish sbr shonnon by year
+
+
+
+```{r}
+srb_list_year_sh<-list()
+loop<-1
+
+wide_2015<-wide_2015 %>% filter(Year !="2017")
+
+for (i in unique(wide_2015$year_month)) {
+  
+  year<- wide_2015 %>% filter(year_month == i)
+  
+  year_richness_shannon<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=1,
+                          random=500,
+                          mean = F)
+  
+  year_richness_shannon$Year<-rep(i)
+  year_richness_shannon$sample<-1:nrow(year_richness_shannon)
+  
+  
+  srb_list_year_sh[[loop]]<-year_richness_shannon
+  loop<-loop+1
+  
+  
+}
+
+year_richness_shannon<-bind_rows(srb_list_year_sh)
+
+
+ggplot(year_richness_shannon,aes(x= sample,y=Rarefaction,color=Year))+
+  geom_line(aes(color = Year), size = 1.2) +
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Shannon diversity")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = fish_all,name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("fish_sbr_year_shannon.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+### boxplot rarefied shannon
+
+
+```{r}
+
+rare_sbr_shanon<-year_richness_shannon %>% filter(sample == 52)
+
+
+ggplot(data = rare_sbr_shanon,aes(x=Year,y=Rarefaction,fill = Year))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=IC_low,ymax= IC_up),width =0.1)+
+  scale_fill_manual(values = fish_all)+
+  xlab("Year")+ 
+  ylab('Shannon rarefied richness')+
+  theme_bw()+geom_text(aes(label = sample,y=1.5), size = 7,color="White")+ 
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+    scale_x_discrete(labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+ggsave("fish_box_plot_sbrshannon_year.png" , width = 10, height = 8, dpi = 300,path = "C:/Users/TalG/My Drive/PHD/chapter 1 strom effect/R Scripts")
+
+```
+
+
+
+# fish sbr shonnon by year - full data
+
+
+
+```{r}
+srb_list_year_sh_full<-list()
+loop<-1
+
+wide_data<-wide_fish 
+
+for (i in unique(wide_data$year_month)) {
+  
+  year<- wide_data %>% filter(year_month == i)
+  
+  year_richness_shannon<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=1,
+                          random=500,
+                          mean = F)
+  
+  year_richness_shannon$Year<-rep(i)
+  year_richness_shannon$sample<-1:nrow(year_richness_shannon)
+  
+  
+  srb_list_year_sh_full[[loop]]<-year_richness_shannon
+  loop<-loop+1
+  
+  
+}
+
+year_richness_shannon<-bind_rows(srb_list_year_sh_full)
+
+
+ggplot(year_richness_shannon,aes(x= sample,y=Rarefaction,color=Year))+
+  geom_line(aes(color = Year), size = 1.2) +
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Shannon diversity")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = fish_all[3:6],name = "Year",
+                           labels = c(                                  "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+
+
+rare_sbr_shanon<-year_richness_shannon %>% filter(sample == 52)
+
+
+ggplot(data = rare_sbr_shanon,aes(x=Year,y=Rarefaction,fill = Year))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=IC_low,ymax= IC_up),width =0.1)+
+  scale_fill_manual(values = fish_all[3:6])+
+  xlab("Year")+ 
+  ylab('Shannon rarefied richness')+
+  theme_bw()+geom_text(aes(label = sample,y=1.5), size = 7,color="White")+ 
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+    scale_x_discrete(labels = c(                                    "Fall 2018","Spring 2020",                                  "Fall 2020" ,                                     "Spring 2021"))
+
+ggsave("fish_box_plot_sbrshannon_year_full_data.png" , width = 10, height = 8, dpi = 300,path = "C:/Users/TalG/My Drive/PHD/chapter 1 strom effect/R Scripts")
+
+#ggsave("fish_sbr_year_shannon_full_comm.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+
+# fish sbr shonnon by year- no schools
+
+```{r}
+srb_list_year_sh_nosc<-list()
+loop<-1
+
+wide_2015_ns<-wide_2015 
+
+wide_2015_ns$`Pseudanthias spp.`<-NULL
+wide_2015_ns$`Chromis viridis`<-NULL
+wide_2015_ns$`Neopomacentrus miryae`<-NULL
+
+
+for (i in unique(wide_2015_ns$year_month)) {
+  
+  year<- wide_2015_ns %>% filter(year_month == i)
+  
+  year_richness_shannon_ns<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=1,
+                          random=500,
+                          mean = F)
+  
+  year_richness_shannon_ns$Year<-rep(i)
+  year_richness_shannon_ns$sample<-1:nrow(year_richness_shannon_ns)
+  
+  
+  srb_list_year_sh_nosc[[loop]]<-year_richness_shannon_ns
+  loop<-loop+1
+  
+  
+}
+
+year_richness_shannon_ns<-bind_rows(srb_list_year_sh_nosc)
+
+
+ggplot(year_richness_shannon_ns,aes(x= sample,y=Rarefaction,color=Year))+
+  geom_line(aes(color = Year), size = 1.2) +
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish - without schools")+
+  ylab("Shannon diversity")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = fish_all,name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("fish_sbr_year_shannon_no_s.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+```
+
+# fish sbr shonnon by year full data- no schools
+
+
+```{r}
+srb_list_year_sh_full<-list()
+loop<-1
+
+wide_data<-wide_fish 
+
+wide_data$`Pseudanthias spp.`<-NULL
+wide_data$`Chromis viridis`<-NULL
+wide_data$`Neopomacentrus miryae`<-NULL
+
+for (i in unique(wide_data$year_month)) {
+  
+  year<- wide_data %>% filter(year_month == i)
+  
+  year_richness_shannon<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=1,
+                          random=500,
+                          mean = F)
+  
+  year_richness_shannon$Year<-rep(i)
+  year_richness_shannon$sample<-1:nrow(year_richness_shannon)
+  
+  
+  srb_list_year_sh_full[[loop]]<-year_richness_shannon
+  loop<-loop+1
+  
+  
+}
+
+year_richness_shannon<-bind_rows(srb_list_year_sh_full)
+
+
+ggplot(year_richness_shannon,aes(x= sample,y=Rarefaction,color=Year))+
+  geom_line(aes(color = Year), size = 1.2) +
+   geom_ribbon(aes(ymin=IC_low, ymax=IC_up),alpha=0.1, linetype = 0)+
+  theme_bw()+xlab("Random sample number") + ggtitle("Fish")+
+  ylab("Shannon diversity")+
+  theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  scale_color_manual(values = fish_all[3:6],name = "Year",
+                           labels = c(                                  "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+
+
+rare_sbr_shanon<-year_richness_shannon %>% filter(sample == 52)
+
+
+ggplot(data = rare_sbr_shanon,aes(x=Year,y=Rarefaction,fill = Year))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=IC_low,ymax= IC_up),width =0.1)+
+  scale_fill_manual(values = fish_all[3:6])+
+  xlab("Year")+ 
+  ylab('Shannon rarefied richness')+
+  theme_bw()+geom_text(aes(label = sample,y=1.5), size = 7,color="White")+ 
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+    scale_x_discrete(labels = c(                                    "Fall 2018","Spring 2020",                                  "Fall 2020" ,                                     "Spring 2021"))
+
+ggsave("fish_box_plot_sbrshannon_year_full_data.png" , width = 10, height = 8, dpi = 300,path = "C:/Users/TalG/My Drive/PHD/chapter 1 strom effect/R Scripts")
+```
+
+
+
+
+
+
+
+
+
+
+
+Hill per year
+
+
+
+# hill number
+
+```{r}
+renyi_profile_year<-renyi(ibr_year[,2:ncol(ibr_year)],
+                          scales = c(0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, Inf),
+                          hill = T)
+
+renyi_data_year<-data.frame(t(renyi_profile_year))
+
+rownames(renyi_data_year)=NULL
+
+renyi_data_year$q<-c(0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, Inf)
+
+colnames(renyi_data_year)<-c("Fall 2015",
+                             "Fall 2016",
+                             "Fall 2018",
+                             "Spring 2020",
+                             "Fall 2020" ,
+                             "Spring 2021",
+                             "Q")
+
+renyi_data_year<-gather(renyi_data_year,"Year","richness",1:6)
+
+renyi_data_year$Q<-ordered(renyi_data_year$Q,levels = c(0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, Inf))
+
+ggplot(renyi_data_year,aes(x=Q,y=richness,color = Year))+
+  geom_point(size=2)+
+  scale_color_manual(values = fish_all,name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))+
+  xlab("Diversity number")+
+  ylab("Diversity")+theme_bw()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20))+
+  ggtitle("Fish")
+  
+
+ggsave("hill_profile_fish_year.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021")
+
+
+```
+
+
+
+

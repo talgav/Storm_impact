@@ -1,0 +1,69 @@
+---
+title: "11.1 changes in knolls area"
+author: "TG"
+date: "19 6 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+
+changes<-read.csv("data\\surface area changes.csv")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(mobr)
+library(FuzzyQ)
+library(forcats)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+
+path<-"C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots for research proposal"
+```
+
+
+```{r}
+ggplot(changes, aes(x=change.percentage))+
+  geom_histogram(binwidth=5,color="darkblue", fill="lightblue")+
+  scale_x_continuous(breaks=seq(-80,80,5))
+  
+```
+
+```{r}
+changes <- changes %>% mutate("change_proj"= Projected.area.after -Projected.area.before) %>% 
+  mutate("proj_precentage" = change_proj*100/Projected.area.before)
+
+ggplot(changes, aes(x=proj_precentage))+
+  geom_histogram(binwidth=5,color="red", fill="red",alpha=0.7)+
+  scale_x_continuous(breaks=seq(-80,80,5))
+
+
+ggplot(changes, aes(x=proj_precentage))+
+  geom_histogram(binwidth=5,color="red", fill="red",alpha=0.7)+
+  scale_x_continuous(breaks=seq(-80,80,5))+
+  geom_histogram(data = changes,aes(x=change.percentage ),binwidth=5,color="darkblue", fill="lightblue",alpha = 0.8)
+
+
+```
+
+
+by site
+```{r}
+ggplot(changes, aes(x=change.percentage,fill = Site))+
+  geom_histogram(binwidth=5)+
+  scale_x_continuous(breaks=seq(-80,80,5))+
+  facet_grid(Site ~ .)
+  
+```
+

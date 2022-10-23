@@ -1,0 +1,415 @@
+---
+title: "3.1 Size spectra"
+author: "TG"
+date: "26 1 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+
+3) separate all abundance >1 to do biomass per fish estimation
+
+```{r}
+to_sep<-one_observer %>% filter(Abundance>1)
+to_sep$Abundance<-as.integer(to_sep$Abundance)
+sum(to_sep$Abundance)
+
+to_sep <- to_sep %>% uncount(Abundance)
+to_sep<-to_sep %>% tibble::add_column(Abundance=rep(1),.after = 9)
+```
+
+
+```{r}
+individual_data<-one_observer %>% filter(Abundance==1)
+individual_data<-bind_rows(individual_data,to_sep)
+individual_data<-individual_data %>% arrange(Site,Date,Knoll)
+rownames(individual_data)<-1:nrow(individual_data)
+```
+
+4) calculate the weight (g) per individual
+
+```{r}
+individual_data<- individual_data %>% mutate("weight" =  a*(Length^b),.after = 11)
+```
+
+
+5) plot size distrabiotions
+
+
+```{r}
+qplot(individual_data$weight,
+      geom="histogram",
+      main = "Fish weights distribution", 
+      xlab = "Fish weight (g)",
+      ylab = "Abundance",
+      fill=I("blue"), 
+      col=I("blue"), 
+      alpha=I(.5))+theme_classic()
+
+
+weight_violin<-ggplot(individual_data, aes(x=Site,y=log(weight) ,fill=Site)) +
+  geom_violin()+ 
+  stat_summary(fun=mean, geom="point")
+
+weight_violin
+
+Length_violin<-ggplot(individual_data, aes(x=Site,y=log(Length) ,fill=Site)) +
+  geom_violin()+ 
+  stat_summary(fun=mean, geom="point")
+
+Length_violin
+
+qplot(log(individual_data$weight),
+      geom="histogram",
+      main = "Fish weights distribution", 
+      xlab = "log Fish weight (g)",
+      ylab = "Abundance",
+      fill=I("blue"), 
+      col=I("blue"), 
+      alpha=I(.5))+theme_classic()
+```
+
+
+
+# Size spectra by site & year
+
+```{r}
+
+size_sp_data<-individual_data
+
+size_sp_data$class <- with(size_sp_data,(ceiling(log(weight,2)))) 
+
+
+size_sp_group <- size_sp_data%>% 
+  group_by(class,Site,Year) %>% 
+  dplyr::summarize(sum_biomass = sum(weight),individuals_in_class= n())
+
+size_sp_group<-na.omit(size_sp_group)
+
+size_sp_group<-size_sp_group %>% unite("site_year",Site,Year,sep = "_")
+
+size_sp_group$midpoint <- ((2^size_sp_group$class)+(2^(size_sp_group$class-1)))/2
+size_sp_group$Width <- (2^((size_sp_group$class)))-((2^(size_sp_group$class-1)))
+size_sp_group$corrected_biomass <- with(data = size_sp_group,expr = sum_biomass/Width)
+size_sp_group$midpoint_log<- log10(size_sp_group$midpoint)
+
+
+
+ggplot(size_sp_group,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(size_sp_group,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_line()+geom_point()
+
+
+filter_size_sp_group<-size_sp_group %>% filter(class>(-2))%>% filter(class<(12))
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_line()+geom_point()
+
+```
+
+
+
+# Size spectra by site 
+
+```{r}
+size_sp_data<-individual_data
+
+size_sp_data$class <- with(size_sp_data,(ceiling(log(weight,2)))) 
+
+
+size_sp_group <- size_sp_data%>% 
+  group_by(class,Site) %>% 
+  dplyr::summarize(sum_biomass = sum(weight),individuals_in_class= n())
+
+size_sp_group<-na.omit(size_sp_group)
+
+
+
+size_sp_group$midpoint <- (2^size_sp_group$class+2^(size_sp_group$class-1))/2
+size_sp_group$Width <- (2^((size_sp_group$class)))-((2^(size_sp_group$class-1)))
+size_sp_group$corrected_biomass <- with(data = size_sp_group,expr = sum_biomass/Width)
+size_sp_group$midpoint_log<- log10(size_sp_group$midpoint)
+
+
+
+ggplot(size_sp_group,aes(midpoint,log10(corrected_biomass),color = Site))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(size_sp_group,aes(midpoint,log10(corrected_biomass),color = Site))+geom_line()+geom_point()
+
+filter_size_sp_group<-size_sp_group %>% filter(class>(0))%>% filter(class<(11))
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = Site))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = Site))+geom_line()+geom_point()
+```
+
+
+
+
+
+# Size spectra by YEAR 
+
+```{r}
+size_sp_data<-individual_data
+
+size_sp_data$class <- with(size_sp_data,(ceiling(log(weight,2)))) 
+
+
+size_sp_group <- size_sp_data%>% 
+  group_by(class,Year) %>% 
+  dplyr::summarize(sum_biomass = sum(weight),individuals_in_class= n())
+
+size_sp_group<-na.omit(size_sp_group)
+
+
+
+size_sp_group$midpoint <- (2^size_sp_group$class+2^(size_sp_group$class-1))/2
+size_sp_group$Width <- (2^((size_sp_group$class)))-((2^(size_sp_group$class-1)))
+size_sp_group$corrected_biomass <- with(data = size_sp_group,expr = sum_biomass/Width)
+size_sp_group$midpoint_log<- log10(size_sp_group$midpoint)
+
+
+
+ggplot(size_sp_group,aes(midpoint,log10(corrected_biomass),color = Year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(size_sp_group,aes(midpoint,log10(corrected_biomass),color = Year))+geom_line()+geom_point()
+
+filter_size_sp_group<-size_sp_group %>% filter(class>(0))%>% filter(class<(11))
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = Year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = Year))+geom_line()+geom_point()
+
+
+```
+
+
+* probably there is an artifact since in 2016-2015 the length were log2...
+
+maybe i should group all lenghts to log 2 and then try it again
+
+add lenght class
+
+
+```{r}
+
+
+individual_data$lenght_class <- with(individual_data,(ceiling(log(Length,2))))
+
+individual_data<-individual_data %>%
+  mutate(lenght_class =(2^lenght_class))
+
+
+individual_data<-individual_data %>%
+  mutate(weight_by_class = a*(lenght_class^b))
+
+```
+
+
+
+
+
+
+```{r}
+
+size_sp_data_gg<-individual_data
+
+size_sp_data_gg$class <- with(size_sp_data_gg,(ceiling(log(weight_by_class,2)))) 
+
+
+size_sp_data_gg <- size_sp_data_gg%>% 
+  group_by(class,Site,Year) %>% 
+  dplyr::summarize(sum_biomass = sum(weight_by_class),individuals_in_class= n())
+
+size_sp_data_gg<-na.omit(size_sp_data_gg)
+
+size_sp_data_gg<-size_sp_data_gg %>% unite("site_year",Site,Year,sep = "_")
+
+size_sp_data_gg$midpoint <- (2^size_sp_data_gg$class+2^(size_sp_data_gg$class-1))/2
+
+size_sp_data_gg$Width <- (2^((size_sp_data_gg$class)))-((2^(size_sp_data_gg$class-1)))
+size_sp_data_gg$corrected_biomass <- with(data = size_sp_data_gg,expr = sum_biomass/Width)
+size_sp_data_gg$midpoint_log<- log10(size_sp_data_gg$midpoint)
+
+
+
+ggplot(size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_line()+geom_point()
+
+
+filter_size_sp_group<-size_sp_data_gg %>% filter(class>(-2))%>% filter(class<(12))
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(filter_size_sp_group,aes(midpoint,log10(corrected_biomass),color = site_year))+geom_line()+geom_point()
+
+```
+
+
+
+# Size spectra by site 
+
+```{r}
+size_sp_data_gg<-individual_data
+
+size_sp_data_gg$class <- with(size_sp_data_gg,(ceiling(log(weight_by_class,2)))) 
+
+
+size_sp_data_gg <- size_sp_data_gg%>% 
+  group_by(class,Site) %>% 
+  dplyr::summarize(sum_biomass = sum(weight_by_class),individuals_in_class= n())
+
+size_sp_data_gg<-na.omit(size_sp_data_gg)
+
+
+
+size_sp_data_gg$midpoint <- (2^size_sp_data_gg$class+2^(size_sp_data_gg$class-1))/2
+size_sp_data_gg$Width <- (2^((size_sp_data_gg$class)))-((2^(size_sp_data_gg$class-1)))
+size_sp_data_gg$corrected_biomass <- with(data = size_sp_data_gg,expr = sum_biomass/Width)
+size_sp_data_gg$midpoint_log<- log10(size_sp_data_gg$midpoint)
+
+
+
+ggplot(size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Site))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Site))+geom_line()+geom_point()
+
+filter_size_sp_data_gg<-size_sp_data_gg %>% filter(class>(-9))%>% filter(class<(13))
+
+ggplot(filter_size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Site))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(filter_size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Site))+geom_line()+geom_point()
+```
+
+
+
+
+
+# Size spectra by YEAR 
+
+```{r}
+size_sp_data_gg<-individual_data
+
+size_sp_data_gg$class <- with(size_sp_data_gg,(ceiling(log(weight_by_class,2)))) 
+
+
+size_sp_data_gg <- size_sp_data_gg%>% 
+  group_by(class,Year) %>% 
+  dplyr::summarize(sum_biomass = sum(weight_by_class),individuals_in_class= n())
+
+size_sp_data_gg<-na.omit(size_sp_data_gg)
+
+
+
+size_sp_data_gg$midpoint <- (2^size_sp_data_gg$class+2^(size_sp_data_gg$class-1))/2
+size_sp_data_gg$Width <- (2^((size_sp_data_gg$class)))-((2^(size_sp_data_gg$class-1)))
+size_sp_data_gg$corrected_biomass <- with(data = size_sp_data_gg,expr = sum_biomass/Width)
+size_sp_data_gg$midpoint_log<- log10(size_sp_data_gg$midpoint)
+
+
+
+ggplot(size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Year))+geom_line()+geom_point()
+
+filter_size_sp_data_gg<-size_sp_data_gg %>% filter(class>(0))%>% filter(class<(11))
+
+ggplot(filter_size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Year))+geom_smooth(method = lm,se=F)+geom_point()
+
+
+ggplot(filter_size_sp_data_gg,aes(midpoint,log10(corrected_biomass),color = Year))+geom_line()+geom_point()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

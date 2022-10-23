@@ -1,0 +1,750 @@
+---
+title: "19.1 commoness index"
+author: "TG"
+date: "17 4 2022"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r message=FALSE, warning=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(Rarefy)
+library(rareNMtests)
+library(zetadiv)
+library(FuzzyQ)
+library(SingleCaseES)
+
+```
+
+test fo single case ES
+
+```{r}
+data(Schmidt2007)
+batch_calc_ES(dat = Schmidt2007,
+              grouping = c(Behavior_type, Case_pseudonym, Phase_num),
+              condition = Condition,
+              outcome = Outcome,
+              ES = c("LRRi","LRRd"),
+              improvement = direction,
+              scale = Metric,
+              bias_correct = TRUE,
+              confidence = NULL,
+              format = "wide")
+
+
+data(McKissick)
+batch_calc_ES(McKissick,
+              grouping = Case_pseudonym,
+              condition = Condition,
+              outcome = Outcome,
+              ES = c("LRRd","LRRi"),
+              improvement = "decrease",
+              scale = "count",
+              observation_length = 20,
+              format = "long")
+
+
+batch_calc_ES(dat = Schmidt2007,
+              grouping = c(Behavior_type, Case_pseudonym),
+              aggregate = Phase_num,
+              weighting = "1/V",
+              condition = Condition,
+              outcome = Outcome,
+              ES = c("LRRi", "LRRd", "SMD", "Tau"),
+              improvement = direction,
+              scale = "count",
+              bias_correct = TRUE,
+              confidence = NULL,
+              format = "long")
+```
+
+
+
+
+color scales definitions 
+
+```{r}
+color_op6 <- c("#20A39E","#23001E","#FFBA49","#EF5B5B")
+```
+
+
+# Data prepartion
+
+```{r}
+load("fish_full_data.rdata")
+select <- dplyr::select
+
+
+
+```
+
+change the values of: 
+Tylosurus choram (from 100 ind * 2cm to 2ind*100cm )
+Pomacentrus trichrourus (50 to 5 cm)
+
+
+```{r}
+
+fish_full_data$Length<-ifelse(fish_full_data$Species=="Tylosurus choram" &
+fish_full_data$Abundance == 100 &
+fish_full_data$survey_id =="Caves_14_2020-06-14",
+100,
+fish_full_data$Length)
+
+fish_full_data$Abundance<-ifelse(fish_full_data$Species=="Tylosurus choram" &
+fish_full_data$Abundance == 100 &
+fish_full_data$survey_id =="Caves_14_2020-06-14",
+2,
+fish_full_data$Abundance)
+
+
+fish_full_data$Length<-ifelse(fish_full_data$Species=="Pomacentrus trichrourus" &
+fish_full_data$Length == 50 &
+fish_full_data$survey_id =="Princess_5_2020-06-14",
+5,
+fish_full_data$Length)
+
+fish_prep<-fish_full_data
+```
+
+
+
+1. final cleaning stages
+
+(to be removed to the data prep script asap)
+
+change mistakes in the confidence level of survey "Princess_6_2020-10-13" 
+
+```{r}
+fish_prep$Confidence<-ifelse(fish_prep$survey_id == "Princess_6_2020-10-13" & fish_prep$Species != "Gobiodon reticulatus",0,fish_prep$Confidence)
+```
+
+change the status of Pseudanthias squamipinnis to C here but i need to do it in the data prep script
+
+```{r}
+
+fish_prep$Status<-ifelse(fish_prep$Species %in% c("Pseudanthias squamipinnis",
+                                                  "Neopomacentrus miryae",
+                                                  "Chromis pembae",
+                                                  "Chromis weberi"),"C",fish_prep$Status)
+
+```
+
+
+
+
+2. keep only data from 2018 
+```{r}
+
+fish_prep<- fish_prep %>% filter(Year > 2018)
+
+```
+
+
+
+3. remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+fish_prep<-fish_prep %>% filter(!Knoll %in% knolls_to_remove) %>% 
+filter(Site !="North beach")
+
+```
+
+4. keep only sure identifications
+
+filter confidence = 0
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(Confidence <1)
+
+```
+
+5. keep one observer from each knoll
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(fish_prep$survey_id)) {
+  
+  data <- fish_prep %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+fish_prep <- bind_rows(one_observer)
+
+rm(data,filter_data,one_observer)
+
+# make sure i have the right knolls number
+
+
+knoll_site_year <-fish_prep %>% group_by(Site,year_month) %>% summarise("knoll_number"= n_distinct(knoll_id))
+
+```
+
+
+6. convert year_month to factor
+
+```{r}
+
+fish_prep$year_month<-as.factor(fish_prep$year_month)
+
+```
+
+
+
+7. keep only the knolls that were surveyed in both years
+
+(otherwise of coarse 2018 will have higher abundances...more knolls)
+
+```{r}
+
+knolls_2018<-fish_prep %>% filter(Year %in% c("2018")) %>% distinct(knoll_id)
+
+knolls_2020<-fish_prep %>% filter(year_month %in% c("2020 a")) %>% distinct(knoll_id)
+
+knolls_2020_b<-fish_prep %>% filter(year_month %in% c("2020 b")) %>% distinct(knoll_id)
+
+
+united_knolls<-intersect(knolls_2018,knolls_2020,knolls_2020_b)
+
+fish_prep<-fish_prep %>% filter(knoll_id %in% united_knolls$knoll_id)
+
+```
+
+7. separate to all fish and resident fish only
+
+
+```{r}
+
+all_fish <- fish_prep 
+resident_fish <- fish_prep %>% filter(Status != "T")
+
+```
+
+8. prepre rank data
+
+based on fuzzyQ of 2018 (all fish)
+
+
+```{r}
+
+fuzzy_matrix <- all_fish %>% 
+  select(Site,year_month,Knoll,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+fuzzy_matrix <- spread(fuzzy_matrix,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+fuzzy_matrix<-fuzzy_matrix[,4:ncol(fuzzy_matrix)]
+
+fuzzy <- fuzzyq(fuzzy_matrix)
+
+rank_data<-fuzzy[["spp"]]
+
+rank_data$Species<-rownames(rank_data)
+
+rownames(rank_data)<-NULL
+
+rank_data<-rank_data %>%
+  arrange(desc(Common.I)) %>%
+  mutate("rank"=1:nrow(rank_data)) %>% 
+  select(Species,rank,Common.I)
+
+
+```
+9.
+
+```{r}
+
+```
+
+
+# log ratios 
+
+
+9. calculate log ratio for 2018 spring 2020
+
+
+```{r}
+
+log_data <- all_fish %>%
+  filter(year_month %in% c("2018 b","2020 a")) %>% 
+  group_by(year_month,Family,Species) %>%
+  summarise(Abundance = sum(Abundance))
+
+log_data <- spread(log_data,year_month,Abundance)
+
+log_data <- left_join(rank_data,log_data)
+
+log_data <- log_data %>%
+  rename("before" = `2018 b`,"after"= `2020 a`) %>%
+  mutate(ratio = after/before, log_ratio = log(ratio))
+
+log_data<-na.omit(log_data)
+
+```
+
+
+plot
+
+```{r}
+log_data$Species <- reorder(log_data$Species, -log_data$rank)
+
+log_data
+
+ggplot(data = log_data,aes(x=log_ratio,y=Species,fill = Family))+
+  geom_bar(stat="identity",color = "black")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))+
+  ggtitle("spring 2020/ Fall 2018")
+
+#ggsave("log_ratio_storm_2018.pdf" , width = 15, height = 18, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\log_ratio")
+
+```
+
+some conclusions:
+
+
+- most species show decline in abundance (80 out of 120)
+
+- most rare species has 0 abundance in one of the samples and thus were omitted
+
+there might be an seasonal effect...
+
+- Coris aygula (rank 35) - seasonal effect mostly, most ind in 2020 are juvenile
+
+- Coris caudimaculate (rank 73) - seasonal effect mostly, many ind in 2020 are juvenile
+
+- this is true also the other way around - most ind of  Chlorurus sordidus at 2018 are juveniles
+
+
+
+# make the same comperison but for fall 2018 and fall 2020
+
+```{r}
+rm(list=setdiff(ls(), c("united_knolls", "fish_full_data")))
+fish_prep<-fish_full_data
+```
+
+
+
+1. final cleaning stages
+
+(to be removed to the data prep script asap)
+
+change mistakes in the confidence level of survey "Princess_6_2020-10-13" 
+
+```{r}
+fish_prep$Confidence<-ifelse(fish_prep$survey_id == "Princess_6_2020-10-13" & fish_prep$Species != "Gobiodon reticulatus",0,fish_prep$Confidence)
+```
+
+change the status of Pseudanthias squamipinnis to C here but i need to do it in the data prep script
+
+
+2. keep only 2018 and 2020 fall 
+
+```{r}
+
+fish_prep<- fish_prep %>% filter(year_month %in% c("2018 b","2020 b"))
+
+```
+
+
+
+3. remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+fish_prep<-fish_prep %>% filter(!Knoll %in% knolls_to_remove) %>% 
+filter(Site !="North beach")
+
+```
+
+4. keep only sure identifications
+
+filter confidence = 0
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(Confidence <1)
+
+```
+
+5. keep one observer from each knoll
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(fish_prep$survey_id)) {
+  
+  data <- fish_prep %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+fish_prep <- bind_rows(one_observer)
+
+rm(data,filter_data,one_observer)
+
+# make sure i have the right knolls number
+
+
+
+
+```
+
+
+6. convert year_month to factor
+
+```{r}
+
+fish_prep$year_month<-as.factor(fish_prep$year_month)
+
+```
+
+
+
+
+7. keep only the knolls that were surveyed in all years
+
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(knoll_id %in% united_knolls$knoll_id)
+
+```
+
+7. separate to all fish and resident fish only
+
+
+```{r}
+
+all_fish <- fish_prep 
+resident_fish <- fish_prep %>% filter(Status != "T")
+
+```
+
+8. prepre rank data
+
+based on fuzzyQ of 2018 (all fish)
+
+
+```{r}
+
+fuzzy_matrix <- all_fish %>% 
+  select(Site,year_month,Knoll,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+fuzzy_matrix <- spread(fuzzy_matrix,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+fuzzy_matrix<-fuzzy_matrix[,4:ncol(fuzzy_matrix)]
+
+fuzzy <- fuzzyq(fuzzy_matrix)
+
+rank_data<-fuzzy[["spp"]]
+
+rank_data$Species<-rownames(rank_data)
+
+rownames(rank_data)<-NULL
+
+rank_data<-rank_data %>%
+  arrange(desc(Common.I)) %>%
+  mutate("rank"=1:nrow(rank_data)) %>% 
+  select(Species,rank,Common.I)
+
+
+```
+
+9. calculate log ratio
+
+
+```{r}
+
+log_data <- all_fish %>% group_by(year_month,Species) %>% summarise(Abundance = sum(Abundance))
+
+log_data <- spread(log_data,year_month,Abundance)
+
+log_data <- left_join(rank_data,log_data)
+
+log_data <- log_data %>%
+  rename("before" = `2018 b`,"after"= `2020 b`) %>%
+  mutate(ratio = after/before, log_ratio = log(ratio))
+
+log_data<-na.omit(log_data)
+
+```
+
+
+plot
+
+```{r}
+log_data$Species <- reorder(log_data$Species, -log_data$rank)
+
+ggplot(data = log_data,aes(x=log_ratio,y=Species))+
+  geom_bar(stat="identity",color = "black",fill = "#eddb6c")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))+
+  ggtitle("Fall 2020/ Fall 2018")
+
+#ggsave("log_ratio_F18_F20.pdf" , width = 15, height = 18, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\log_ratio")
+
+```
+
+
+# make the same comperison but for spring 2020 and spring 2021 
+
+```{r}
+rm(list=setdiff(ls(), c("united_knolls", "fish_full_data")))
+fish_prep<-fish_full_data
+```
+
+
+
+1. final cleaning stages
+
+(to be removed to the data prep script asap)
+
+change mistakes in the confidence level of survey "Princess_6_2020-10-13" 
+
+```{r}
+fish_prep$Confidence<-ifelse(fish_prep$survey_id == "Princess_6_2020-10-13" & fish_prep$Species != "Gobiodon reticulatus",0,fish_prep$Confidence)
+```
+
+change the status of Pseudanthias squamipinnis to C here but i need to do it in the data prep script
+
+
+2. keep only 2020 spring (storm) and 2021 spring 
+
+```{r}
+
+fish_prep<- fish_prep %>% filter(year_month %in% c("2020 a","2021 a"))
+
+```
+
+
+
+3. remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+fish_prep<-fish_prep %>% filter(!Knoll %in% knolls_to_remove) %>% 
+filter(Site !="North beach")
+
+```
+
+4. keep only sure identifications
+
+filter confidence = 0
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(Confidence <1)
+
+```
+
+5. keep one observer from each knoll
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(fish_prep$survey_id)) {
+  
+  data <- fish_prep %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+fish_prep <- bind_rows(one_observer)
+
+rm(data,filter_data,one_observer)
+
+# make sure i have the right knolls number
+
+
+
+
+```
+
+
+6. convert year_month to factor
+
+```{r}
+
+fish_prep$year_month<-as.factor(fish_prep$year_month)
+
+```
+
+
+
+
+7. keep only the knolls that were surveyed in all years
+
+
+
+```{r}
+
+fish_prep<-fish_prep %>% filter(knoll_id %in% united_knolls$knoll_id)
+
+```
+
+7. separate to all fish and resident fish only
+
+
+```{r}
+
+all_fish <- fish_prep 
+resident_fish <- fish_prep %>% filter(Status != "T")
+
+```
+
+8. prepre rank data
+
+based on fuzzyQ of 2018 (all fish)
+
+
+```{r}
+
+fuzzy_matrix <- all_fish %>% 
+  select(Site,year_month,Knoll,Species,Abundance) %>%
+  group_by(Site,year_month,Knoll,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+fuzzy_matrix <- spread(fuzzy_matrix,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+fuzzy_matrix<-fuzzy_matrix[,4:ncol(fuzzy_matrix)]
+
+fuzzy <- fuzzyq(fuzzy_matrix)
+
+rank_data<-fuzzy[["spp"]]
+
+rank_data$Species<-rownames(rank_data)
+
+rownames(rank_data)<-NULL
+
+rank_data<-rank_data %>%
+  arrange(desc(Common.I)) %>%
+  mutate("rank"=1:nrow(rank_data)) %>% 
+  select(Species,rank,Common.I)
+
+
+```
+
+9. calculate log ratio
+
+
+```{r}
+
+log_data <- all_fish %>% group_by(year_month,Species) %>% summarise(Abundance = sum(Abundance))
+
+log_data <- spread(log_data,year_month,Abundance)
+
+log_data <- left_join(rank_data,log_data)
+
+log_data <- log_data %>%
+  rename("storm" = `2020 a`,"after"= `2021 a`) %>%
+  mutate(ratio = after/storm, log_ratio = log(ratio))
+
+log_data<-na.omit(log_data)
+
+```
+
+
+plot
+
+```{r}
+log_data$Species <- reorder(log_data$Species, -log_data$rank)
+
+ggplot(data = log_data,aes(x=log_ratio,y=Species))+
+  geom_bar(stat="identity",color = "black",fill = "#de1e2b")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22))+
+  ggtitle("spring 2021/ spring 2020")
+
+#ggsave("log_ratio_S20_S21.pdf" , width = 15, height = 18, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\log_ratio")
+
+```

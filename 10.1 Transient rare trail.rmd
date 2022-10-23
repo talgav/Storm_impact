@@ -1,0 +1,193 @@
+---
+title: "10.1 TBA"
+author: "TG"
+date: "27 4 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(mobr)
+library(FuzzyQ)
+
+```
+
+
+```{r}
+species_status<-fish_full_data %>% select(Species,Species_2015,Family,Status) %>%
+  distinct(Species,.keep_all = T) %>% arrange(Family,Species)
+
+write.csv(species_status,"species_status_empty.csv")
+
+```
+
+
+### general steps:
+
+1) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+sp_area<-fish_full_data
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+sp_area<-sp_area %>% filter(Confidence <2)
+
+```
+
+
+2) remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+sp_area<-sp_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+```
+
+3) keep one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(sp_area$survey_id)) {
+  
+  data <- sp_area %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+
+
+```{r}
+year_month_keep<-c("2018 b","2020 a","2020 b")
+
+
+```
+
+#build the data sturcture for the analysis - by knoll
+
+```{r}
+
+data_1 <- one_observer %>% select(Site,Knoll,Year,year_month,Date,survey_id,Species,Species_2015,Family,Abundance)
+
+
+data_1 <-data_1 %>% group_by(survey_id,Species_2015) %>% summarise("Abundance"=sum(Abundance))
+
+knoll_number<-length(unique(data_1$survey_id))
+
+data_1<-data_1 %>% group_by(Species_2015) %>% summarise("Abundance"= sum(Abundance),"Occurance"=n_distinct(survey_id))
+
+data_1<-data_1 %>% mutate("realtive_occurance"=Occurance/knoll_number,"relative_abundane"=Abundance/sum(Abundance))
+
+ggplot(data = data_1,aes(x=log(Abundance),y=realtive_occurance))+geom_point()
+ggplot(data = data_1,aes(x=Abundance,y=realtive_occurance))+geom_point()
+```
+
+```{r}
+
+data_2 <- one_observer %>% select(Site,Knoll,Year,year_month,Date,survey_id,Species,Species_2015,Family,Abundance)
+
+
+data_2 <-data_2 %>% group_by(survey_id,Species) %>% summarise("Abundance"=sum(Abundance))
+
+knoll_number<-length(unique(data_2$survey_id))
+
+data_2<-data_2 %>% group_by(Species) %>% summarise("Abundance"= sum(Abundance),"Occurance"=n_distinct(survey_id))
+
+data_2<-data_2 %>% mutate("realtive_occurance"=Occurance/knoll_number,"relative_abundane"=Abundance/sum(Abundance))
+
+ggplot(data = data_2,aes(x=log(Abundance),y=realtive_occurance))+geom_point()
+ggplot(data = data_2,aes(x=relative_abundane,y=realtive_occurance))+geom_point()
+
+
+
+
+```
+
+#build the data sturcture for the analysis - by site
+
+
+
+
+```{r}
+data_3 <- one_observer %>% select(Site,Knoll,Year,year_month,Date,survey_id,Species,Species_2015,Family,Abundance)
+
+data_3 <-data_3 %>% mutate("id" = paste(Site,year_month,sep="_"))
+
+#data_3 <-data_3 %>% group_by(id,Species) %>% summarise("Abundance"=sum(Abundance))
+
+site_number<-length(unique(data_3$id))
+
+data_3<-data_3 %>% group_by(Species) %>% summarise("Abundance"= sum(Abundance),"Occurance"=n_distinct(id))
+
+data_3<-data_3 %>% mutate("realtive_occurance"=Occurance/knoll_number,"relative_abundane"=Abundance/sum(Abundance))
+
+data_3<-data_3 %>% arrange(Abundance) %>% mutate("abundance_group"=ntile(Abundance,3))
+
+ggplot(data = data_3,aes(x=log(Abundance),y=realtive_occurance,color = as.factor(abundance_group)))+geom_point()+
+  geom_hline(yintercept=0.66, linetype="dashed",size=1)+
+  geom_hline(yintercept=0.33, linetype="dashed",size=1)
+
+
+ggplot(data = data_3,aes(x= Abundance,y=realtive_occurance,color = as.factor(abundance_group)))+geom_point()+geom_jitter()+
+    geom_hline(yintercept=0.66, linetype="dashed",size=1)+
+  geom_hline(yintercept=0.33, linetype="dashed",size=1)
+
+
+data_3$abundance_group<-as.factor(data_3$abundance_group)
+data_3$log_abundance<-log(data_3$Abundance)
+library(plotly)
+
+fig <- plot_ly(data_3, x = ~ log_abundance, y = ~realtive_occurance,color = ~abundance_group, type = 'scatter', mode = 'markers',text = ~paste('Species: ', Species))
+
+fig
+
+```
+
+
+
+
+

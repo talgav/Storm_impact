@@ -1,0 +1,392 @@
+---
+title: "2.2 species area relationship"
+author: "TG"
+date: "26 1 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+# species - area relationship
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+## Data preperation
+
+1) choose only one surveyor form each survey
+at this point it's random! later maybe consider ranking or other method
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+sp_area<-one_observer
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+sp_area<-sp_area %>% filter(Confidence <2)
+
+```
+
+3) filter Transient species
+
+```{r}
+sp_area<-sp_area %>% filter(Status == "C")
+
+```
+
+
+4) remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+sp_area<-sp_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+```
+
+
+5) plot the knolls size in each site
+
+```{r}
+knolls_size<-sp_area %>% distinct(knoll_id,.keep_all = T) %>% select(knoll_id,Site,Knoll,projected_area_ellipse,Surface.Area)
+
+
+porj_area_violin<-ggplot(knolls_size, aes(x=Site,y=projected_area_ellipse ,fill=Site)) +
+  geom_violin()+ 
+  stat_summary(fun=mean, geom="point")+ 
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1,shape=16)+
+  geom_hline(yintercept=mean(knolls_size$projected_area_ellipse,na.rm = T),linetype="dashed",color="red")+
+  theme_bw()
+
+porj_area_violin
+
+
+surf_area_violin<-ggplot(knolls_size, aes(x=Site,y= Surface.Area ,fill=Site)) +
+  geom_violin()+ 
+  stat_summary(fun=mean, geom="point")+ 
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1,shape=16)+
+  geom_hline(yintercept=mean(knolls_size$Surface.Area,na.rm = T),linetype="dashed",color="red")+
+  theme_bw()
+
+surf_area_violin
+
+```
+
+
+6) set the number of species per knoll
+
+* note - Im using here the "down-graded" data - fish are grouped according to 2016 sp list
+
+
+```{r}
+
+species_knoll<-sp_area %>% group_by(survey_id) %>% mutate(Species_number = n_distinct(Species_grouped)) %>% select(-Species,-Species_grouped,-Family,-Abundance,-Length,-Confidence,-Status) %>%  ungroup() %>% distinct(.keep_all = T)
+
+```
+
+
+
+## MODELS
+
+### with lme4 package
+
+1) Use the Surface Area parameter
+
+* year - random effect
+* Max depth - random effect
+* log(surface area) in interaction with site
+
+```{r}
+
+sp_surface<-lmer(formula = log(Species_number) ~ log(Surface.Area):Site + Max.depth +(1|Year),data = species_knoll)
+
+
+summary(sp_surface)
+r.squaredGLMM(sp_surface)
+
+plot(sp_surface)
+
+qqnorm(resid(sp_surface)) 
+qqline(resid(sp_surface), col = "red")
+
+plot(fitted(sp_surface), resid(sp_surface, type = "pearson"))# this will create the plot
+abline(0,0, col="red")
+
+ggplot(data = species_knoll, 
+       aes(x   = log(Surface.Area),
+           y   = log(Species_number), 
+           col = as.factor(Site)))+
+  geom_point(size     = 1, 
+             alpha    = .7, 
+             position = "jitter")+
+  geom_smooth(method   = lm,
+              se       = T, 
+              size     = 1.5, 
+              linetype = 1, 
+              alpha    = .2)+
+  theme_minimal()
+```
+
+
+2) Use the projected area parameter
+
+* year - random effect
+* Max depth - random effect
+* log(surface area) in interaction with site
+
+```{r}
+
+sp_projected<-lmer(formula = log(Species_number) ~ log(projected_area_ellipse):Site + Max.depth +(1|Year),data = species_knoll)
+
+
+summary(sp_projected)
+r.squaredGLMM(sp_projected)
+
+plot(sp_projected)
+
+qqnorm(resid(sp_projected)) 
+qqline(resid(sp_projected), col = "red")
+
+plot(fitted(sp_projected), resid(sp_projected, type = "pearson"))# this will create the plot
+abline(0,0, col="red")
+
+ggplot(data = species_knoll, 
+       aes(x   = log(projected_area_ellipse),
+           y   = log(Species_number), 
+           col = as.factor(Site)))+
+  geom_point(size     = 1, 
+             alpha    = .7, 
+             position = "jitter")+
+  geom_smooth(method   = lm,
+              se       = T, 
+              size     = 1.5, 
+              linetype = 1, 
+              alpha    = .2)+
+  theme_minimal()
+```
+
+### Sars Models
+
+#### Log models
+
+c+z×log(A)
+
+```{r}
+fit_list<-list()
+loop<-1
+
+for( i in unique(species_knoll$Site)){
+ 
+  print(i)
+  
+  site_data <- species_knoll %>% 
+    filter(Site == i) %>% select(Surface.Area,Species_number) 
+  
+  site_data<-na.omit(site_data)
+
+  fit_list[[i]]<- sar_loga(site_data)
+  
+  
+}
+
+plot(fit_list[[1]],ModTitle  = "NR - log model")
+summary(fit_list[[1]])
+
+plot(fit_list[[2]],ModTitle  = "Caves - log model")
+summary(fit_list[[2]])
+
+plot(fit_list[[3]],ModTitle  = "Princess - log model")
+summary(fit_list[[3]])
+
+plot(fit_list[[4]],ModTitle  = "Katza - log model")
+summary(fit_list[[4]])
+```
+
+
+```{r}
+
+sar_log_sum<-data.frame("Site"= c("NR","Caves","Princess","Katza"))
+
+sar_log_sum$z<-c(fit_list[[1]][["par"]][["z"]],
+                 fit_list[[2]][["par"]][["z"]],
+                 fit_list[[3]][["par"]][["z"]],
+                 fit_list[[4]][["par"]][["z"]])
+
+sar_log_sum$c<-c(fit_list[[1]][["par"]][["c"]],
+                 fit_list[[2]][["par"]][["c"]],
+                 fit_list[[3]][["par"]][["c"]],
+                 fit_list[[4]][["par"]][["c"]])
+
+sar_log_sum$r<-c(fit_list[[1]][["R2"]],
+                 fit_list[[2]][["R2"]],
+                 fit_list[[3]][["R2"]],
+                 fit_list[[4]][["R2"]])
+
+sar_log_sum
+```
+
+#### Power model
+
+c×A^z
+
+```{r}
+power_fit_list<-list()
+
+
+for( i in unique(species_knoll$Site)){
+ 
+  print(i)
+  
+  site_data <- species_knoll %>% 
+    filter(Site == i) %>% select(Surface.Area,Species_number) 
+  
+  site_data<-na.omit(site_data)
+
+  power_fit_list[[i]]<- sar_power(site_data)
+  
+  
+}
+
+plot(power_fit_list[[1]],ModTitle  = "NR - power model")
+summary(power_fit_list[[1]])
+
+plot(power_fit_list[[2]],ModTitle  = "Caves - power model")
+summary(power_fit_list[[2]])
+
+plot(power_fit_list[[3]],ModTitle  = "Princess - power model")
+summary(power_fit_list[[3]])
+
+plot(power_fit_list[[4]],ModTitle  = "Katza - power model")
+summary(power_fit_list[[4]])
+```
+
+
+
+```{r}
+
+sar_power_sum<-data.frame("Site"= c("NR","Caves","Princess","Katza"))
+
+sar_power_sum$z<-c(power_fit_list[[1]][["par"]][["z"]],
+                 power_fit_list[[2]][["par"]][["z"]],
+                 power_fit_list[[3]][["par"]][["z"]],
+                 power_fit_list[[4]][["par"]][["z"]])
+
+sar_power_sum$c<-c(power_fit_list[[1]][["par"]][["c"]],
+                 power_fit_list[[2]][["par"]][["c"]],
+                 power_fit_list[[3]][["par"]][["c"]],
+                 power_fit_list[[4]][["par"]][["c"]])
+
+sar_power_sum$r<-c(power_fit_list[[1]][["R2"]],
+                 power_fit_list[[2]][["R2"]],
+                 power_fit_list[[3]][["R2"]],
+                 power_fit_list[[4]][["R2"]])
+
+sar_power_sum
+
+```
+
+### Sar models with mean values per knoll:
+
+```{r}
+
+mean_species_knoll<-species_knoll %>% group_by(knoll_id) %>% mutate(Mean_species_number = mean(Species_number)) %>% ungroup() %>% distinct(knoll_id,.keep_all = T)
+
+```
+
+
+log model
+
+
+```{r}
+fit_list_mean<-list()
+
+
+for( i in unique(mean_species_knoll$Site)){
+ 
+  print(i)
+  
+  site_data <- mean_species_knoll %>% 
+    filter(Site == i) %>% select(Surface.Area,Species_number) 
+  
+  site_data<-na.omit(site_data)
+
+  fit_list_mean[[i]]<- sar_loga(site_data)
+  
+  
+}
+
+plot(fit_list_mean[[1]],ModTitle  = "NR - mean log model")
+plot(fit_list_mean[[2]],ModTitle  = "Caves - meanlog model")
+plot(fit_list_mean[[3]],ModTitle  = "Princess - mean log model")
+plot(fit_list_mean[[4]],ModTitle  = "Katza - mean log model")
+
+
+
+
+sar_mean_log_sum<-data.frame("Site"= c("NR","Caves","Princess","Katza"))
+
+sar_mean_log_sum$z<-c(fit_list_mean[[1]][["par"]][["z"]],
+                 fit_list_mean[[2]][["par"]][["z"]],
+                 fit_list_mean[[3]][["par"]][["z"]],
+                 fit_list_mean[[4]][["par"]][["z"]])
+
+sar_mean_log_sum$c<-c(fit_list_mean[[1]][["par"]][["c"]],
+                 fit_list_mean[[2]][["par"]][["c"]],
+                 fit_list_mean[[3]][["par"]][["c"]],
+                 fit_list_mean[[4]][["par"]][["c"]])
+
+sar_mean_log_sum$r<-c(fit_list_mean[[1]][["R2"]],
+                 fit_list_mean[[2]][["R2"]],
+                 fit_list_mean[[3]][["R2"]],
+                 fit_list_mean[[4]][["R2"]])
+
+sar_mean_log_sum
+```
+

@@ -1,0 +1,665 @@
+---
+title: "2.3 species area relationship"
+author: "TG"
+date: "31 1 2021"
+output:
+  html_document:
+    df_print: paged
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+
+
+```
+
+
+### general steps:
+
+1) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+sp_area<-fish_full_data
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+sp_area<-sp_area %>% filter(Confidence <2)
+
+```
+
+
+2) remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+sp_area<-sp_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+```
+
+3) keep one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(sp_area$survey_id)) {
+  
+  data <- sp_area %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+# first combination
+
+* all fish(transient + cryptic)
+* only one observer
+* y = surface area
+
+
+
+4) set the number of species per knoll
+
+* note - Im using here the "down-graded" data - fish are grouped according to 2016 sp list
+
+
+```{r}
+
+species_knoll<- one_observer %>% group_by(survey_id) %>% mutate(Species_number = n_distinct(Species_2015)) %>% select(-Species,-Species_grouped,-Species_2015,-Family,-Abundance,-Length,-Confidence,-Status,-a,-b) %>%  ungroup() %>% distinct(.keep_all = T)
+
+```
+
+5) ill leave 2017 where only kazza was sampled out
+
+```{r}
+species_knoll<-species_knoll %>% filter(Year != 2017)
+
+
+```
+
+6) split 2020 to two surveys
+
+```{r}
+species_knoll <- species_knoll %>% 
+                 mutate(year_month = ymd(paste(Year,month(Date),"1")))
+```
+
+
+
+7) model
+
+```{r}
+
+sp_surface_area<-list()
+
+sp_surface_area[[1]]<-lmer(formula = log(Species_number) ~ log(Surface.Area)*Site + Max.depth +(1|year_month),data = species_knoll)
+
+sp_surface_area[[2]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site + Max.depth + year_month,data = species_knoll)
+
+sp_surface_area[[3]]<-lmer(formula = log(Species_number) ~ log(Surface.Area)*Site + (1|year_month),data = species_knoll)
+
+sp_surface_area[[4]]<-lmer(formula = log(Species_number) ~ log(Surface.Area):Site + Max.depth +(1|year_month),data = species_knoll)
+
+sp_surface_area[[5]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site*year_month + Max.depth ,data = species_knoll)
+
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+summary(sp_surface_area[[1]])
+r.squaredGLMM(sp_surface_area[[1]])
+
+summary(sp_surface_area[[2]])
+r.squaredGLMM(sp_surface_area[[2]])
+
+summary(sp_surface_area[[3]])
+r.squaredGLMM(sp_surface_area[[3]])
+
+summary(sp_surface_area[[4]])
+r.squaredGLMM(sp_surface_area[[4]])
+
+summary(sp_surface_area[[5]])
+r.squaredGLMM(sp_surface_area[[5]])
+
+aic<-model.sel(sp_surface_area[[1]],sp_surface_area[[2]],sp_surface_area[[3]],sp_surface_area[[4]],sp_surface_area[[5]])
+```
+
+```{r}
+aic
+```
+
+
+```{r}
+hist(sp_area$Max.depth)
+
+mean(sp_area$Max.depth,na.rm=T)
+median(sp_area$Max.depth,na.rm=T)
+
+hist(sp_area$Surface.Area)
+
+
+
+```
+
+###the chosen model:
+
+log(Species_number) ~ log(Surface.Area)*Site + (1|year_month)
+
+create predict table:
+
+```{r}
+
+surface_area = rep(seq(from = 5,to = 40,by = 5),24) # Length = 8
+site = rep(unique(species_knoll$Site),each = 48) # Length = 4
+year = rep(rep(unique(species_knoll$year_month),each = 8),4) # Length = 6
+
+  
+predict_sa<-data.frame(Site = site,
+                       year_month = year,
+                       Surface.Area= surface_area,
+                       Max.depth = rep(4))
+
+predict_sa$Surface.Area_log<-log(predict_sa$Surface.Area)
+
+predict_sp<-predict(sp_surface_area[[3]],predict_sa,type="response",se.fit = T)
+
+predicted_surface<-cbind(predict_sa,predict_sp)
+predicted_surface$species_number<-exp(predicted_surface$predict_sp)
+
+predicted_surface$site_year<-paste(predicted_surface$Site,predicted_surface$year_month,sep="_")
+
+predicted_surface$year_month<- as.factor(predicted_surface$year_month)
+
+```
+
+
+```{r echo=FALSE}
+ggplot(data = predicted_surface,aes(x= Surface.Area_log,y = predict_sp,color= site_year))+
+  geom_line(size=1)+theme_classic()
+
+
+ggplot(data = predicted_surface,aes(x= Surface.Area,y = species_number,color= site_year))+
+  geom_line(size=1)+theme_classic()
+
+```
+
+for each site
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+for (i in unique(predicted_surface$Site)) {
+  data<-predicted_surface %>% filter(Site == i)
+  
+  print(ggplot(data = data,aes(x= Surface.Area,y = species_number,color= year_month))+
+  geom_line(size=1)+
+    ylim(0,60)+
+    theme_classic()+
+    ggtitle(i)+
+    scale_colour_manual(values=c("#56dde0", "#33658a", "#f5af2d","#f2641a","#5da446","#c9e32a")))
+  
+}
+
+
+
+  
+  
+```
+
+
+
+for each year
+
+```{r}
+
+
+for (i in unique(predicted_surface$year_month)) {
+  data<-predicted_surface %>% filter(year_month == i)
+  print(ggplot(data = data,aes(x= Surface.Area,y = species_number,color= Site))+
+  geom_line(size=1)+ylim(0,50)+theme_classic()+ggtitle(i)+
+    scale_colour_manual(values=c("#ed6028", "#159ed2", "#16a647","#c40032","#262d35"))
+    )
+  
+}
+
+
+```
+
+
+```{r}
+rm(list=setdiff(ls(), c("one_observer","species_knoll","sp_area")))
+
+```
+
+# Second combination
+
+* without Transient species
+* only one observer
+* y = surface area
+
+
+```{r}
+only_cryptic <- one_observer %>% filter(Status != "T")
+
+```
+
+
+3) set the number of species per knoll
+
+
+```{r}
+
+species_knoll_cry<- only_cryptic %>% group_by(survey_id) %>% mutate(Species_number = n_distinct(Species_2015)) %>% select(-Species,-Species_grouped,-Species_2015,-Family,-Abundance,-Length,-Confidence,-Status,-a,-b) %>%  ungroup() %>% distinct(.keep_all = T)
+
+```
+
+* ill leave 2007 where only kazza was sampled out
+
+```{r}
+species_knoll_cry<-species_knoll_cry %>% filter(Year != 2017)
+
+
+```
+
+4) split 2020 to two surveys
+
+```{r}
+species_knoll_cry <- species_knoll_cry %>% 
+                 mutate(year_month = ymd(paste(Year,month(Date),"1")))
+```
+
+
+ 
+
+4) model
+
+```{r}
+
+cryptic_list<-list()
+
+cryptic_list[[1]]<-lmer(formula = log(Species_number) ~ log(Surface.Area)*Site + Max.depth +(1|year_month),data = species_knoll_cry)
+
+cryptic_list[[2]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site + Max.depth + year_month,data = species_knoll_cry)
+
+cryptic_list[[3]]<-lmer(formula = log(Species_number) ~ log(Surface.Area)*Site + (1|year_month),data = species_knoll_cry)
+
+cryptic_list[[4]]<-lmer(formula = log(Species_number) ~ log(Surface.Area):Site + Max.depth +(1|year_month),data = species_knoll_cry)
+
+cryptic_list[[5]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site*year_month + Max.depth ,data = species_knoll_cry)
+
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+summary(cryptic_list[[1]])
+r.squaredGLMM(cryptic_list[[1]])
+
+summary(cryptic_list[[2]])
+r.squaredGLMM(cryptic_list[[2]])
+
+summary(cryptic_list[[3]])
+r.squaredGLMM(cryptic_list[[3]])
+
+summary(cryptic_list[[4]])
+r.squaredGLMM(cryptic_list[[4]])
+
+summary(cryptic_list[[5]])
+r.squaredGLMM(cryptic_list[[5]])
+
+aic_cry<-model.sel(cryptic_list[[1]],cryptic_list[[2]],cryptic_list[[3]],cryptic_list[[4]],cryptic_list[[5]])
+
+```
+
+### the chosen model:
+
+log(Species_number) ~ log(Surface.Area)*Site + (1|year_month),data = species_knoll_cry
+
+create predict table
+
+```{r}
+
+surface_area = rep(seq(from = 5,to = 40,by = 5),20) # Length = 8
+site = rep(unique(species_knoll$Site),each = 40) # Length = 4
+year = rep(rep(unique(species_knoll$year_month),each = 8),4) # Length = 5
+
+  
+predict_cryptic<-data.frame(Site = site,
+                       year_month = year,
+                       Surface.Area= surface_area)
+
+
+
+
+predict_cryptic$Surface.Area_log<-log(predict_cryptic$Surface.Area)
+
+
+predict_species_cryptic<-predict(cryptic_list[[3]],predict_cryptic,type="response")
+
+cyptic_predicted<-cbind(predict_cryptic,predict_species_cryptic)
+
+cyptic_predicted$site_year<-paste(cyptic_predicted$Site,cyptic_predicted$year_month,sep="_")
+
+cyptic_predicted$species_number<-exp(cyptic_predicted$predict_species_cryptic)
+
+
+cyptic_predicted$year_month<- as.factor(cyptic_predicted$year_month)
+
+
+
+```
+
+
+
+```{r}
+ggplot(data = cyptic_predicted,aes(x= Surface.Area_log,y = predict_species_cryptic,color= site_year))+
+  geom_line(size=1)+theme_classic()
+
+ggplot(data = cyptic_predicted,aes(x= Surface.Area,y = species_number,color= site_year))+
+  geom_line(size=1)+theme_classic()
+
+
+  
+```
+
+for each site
+
+
+```{r}
+
+
+for (i in unique(cyptic_predicted$Site)) {
+  data<-cyptic_predicted %>% filter(Site == i)
+  
+  print(
+    ggplot(data = data,aes(x= Surface.Area,y = species_number,color= year_month))+
+    geom_line(size=1)+ylim(1,30)+
+    theme_classic()+
+    ggtitle(i)+
+    scale_colour_manual(values=c("#56dde0", "#33658a", "#f5af2d","#f2641a","#5da446")))
+  
+  
+  ggsave(filename =paste(i,".png"))
+  
+}
+
+
+
+  
+```
+
+
+
+for each year
+
+```{r}
+
+
+for (i in unique(cyptic_predicted$year_month)) {
+  data<-cyptic_predicted %>% filter(year_month == i)
+  print(ggplot(data = data,aes(x= Surface.Area,y = species_number,color= Site))+
+  geom_line(size=1)+ylim(1,40)+theme_classic()+ggtitle(i)+
+    scale_colour_manual(values=c("#ed6028", "#159ed2", "#16a647","#c40032")))
+  
+}
+
+
+```
+
+
+
+
+```{r}
+rm(list=setdiff(ls(), c("one_observer","species_knoll","sp_area","species_knoll_cry")))
+
+```
+
+
+# third comperison - storm
+
+before and after the storm...2018 & 2020 
+only cryptic species
+but ill use the full species name and not the group ones
+
+```{r}
+storm_knolls<- one_observer %>% filter(Status != "T") %>%  group_by(survey_id) %>% mutate(Species_number = n_distinct(Species)) %>% select(-Species,-Species_grouped,-Family,-Abundance,-Length,-Confidence,-Status,-a,-b) %>%  ungroup() %>% distinct(.keep_all = T)
+```
+
+```{r}
+storm_knolls<- storm_knolls %>% filter(Year == 2020|Year ==2018) %>% mutate(month = month(Date))
+
+storm_knolls <- storm_knolls %>% mutate(year_month = ymd(paste(Year,month,"1")))
+storm_knolls$year_month<-as.factor(storm_knolls$year_month)
+
+storm_knolls$season<-ifelse(storm_knolls$month == 6 ,"summer","fall")
+storm_knolls$storm <- ifelse(storm_knolls$month == 9 ,"before","after")
+```
+
+```{r}
+
+storm_list<-list()
+
+storm_list[[1]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site + Max.depth + year_month,data = storm_knolls)
+
+storm_list[[2]]<-lmer(formula = log(Species_number) ~ log(Surface.Area)*Site + Max.depth + (1|year_month) ,data = storm_knolls)
+
+storm_list[[3]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site*year_month,data = storm_knolls)
+
+storm_list[[4]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*Site*year_month +Max.depth ,data = storm_knolls)
+
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+aic_storm<-model.sel(storm_list[[1]],storm_list[[2]],storm_list[[3]],storm_list[[4]])
+```
+
+```{r}
+aic_storm
+```
+
+### chosen model
+
+log(Species_number) ~ log(Surface.Area)*Site + year_month + Max.depth
+
+create predict table
+
+```{r}
+surface_area = rep(seq(from = 5,to = 40,by = 5),12) # Length = 8
+site = rep(unique(storm_knolls$Site),each = 24) # Length = 4
+year_month = rep(rep(unique(storm_knolls$year_month),each = 8),4) # Length = 3
+
+  
+predict_storm<-data.frame(Site = site,
+                       year_month = year_month,
+                       Surface.Area=surface_area,
+                       Max.depth = rep(4))
+
+predict_storm$Surface.Area_log<-log(predict_storm$Surface.Area)
+
+predict_storm_sp<-predict(storm_list[[1]],predict_storm,type="response")
+
+predict_storm_sp<-cbind(predict_storm,predict_storm_sp)
+
+predict_storm_sp$year_month<-as.factor(predict_storm_sp$year_month)
+
+predict_storm_sp$date_site<-paste(predict_storm_sp$Site,predict_storm_sp$year_month,sep=" ")
+
+
+predict_storm_sp$species_number<-exp(predict_storm_sp$predict_storm_sp)
+
+ggplot(data = predict_storm_sp,aes(x= Surface.Area_log,y = predict_storm_sp,color= date_site))+
+  geom_line(size=1)+theme_classic()
+```
+
+```{r}
+ggplot(data = predict_storm_sp,aes(x= Surface.Area_log,y = predict_storm_sp,color= date_site))+
+  geom_line(size=1)+theme_classic()
+
+ggplot(data = predict_storm_sp,aes(x= Surface.Area,y = species_number,color= date_site))+
+  geom_line(size=1)+theme_classic()
+```
+
+for each site
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+for (i in unique(predict_storm_sp$Site)) {
+  data<-predict_storm_sp %>% filter(Site == i)
+  
+  print(ggplot(data = data,aes(x= Surface.Area,y = species_number,color= year_month))+
+  geom_line(size=1)+
+    ylim(0,60)+
+    theme_classic()+
+    ggtitle(i)+
+    scale_colour_manual(values=c("#56dde0", "#33658a", "#f5af2d","#f2641a","#5da446")))
+  
+}
+
+
+
+  
+  
+```
+
+for each year
+
+```{r}
+
+
+for (i in unique(predict_storm_sp$year_month)) {
+  data<-predict_storm_sp %>% filter(year_month == i)
+  print(ggplot(data = data,aes(x= Surface.Area,y = species_number,color= Site))+
+  geom_line(size=1)+ylim(0,40)+theme_classic()+ggtitle(i)+
+    scale_colour_manual(values=c("#ed6028", "#159ed2", "#16a647","#c40032"))
+    )
+  
+}
+
+
+```
+
+ 
+ 
+```{r}
+rm(list=setdiff(ls(), c("one_observer","species_knoll","sp_area","species_knoll_cry")))
+
+```
+
+
+ 
+# forth comperison - Katza
+
+
+```{r}
+species_kazza_knoll<- one_observer %>%filter(Status!= "T") %>% group_by(survey_id) %>% mutate(Species_number = n_distinct(Species_2015)) %>% select(-Species,-Species_grouped,-Species_2015,-Family,-Abundance,-Length,-Confidence,-Status,-a,-b) %>%  ungroup() %>% distinct(.keep_all = T)
+```
+
+
+```{r}
+species_kazza_knoll<- species_kazza_knoll %>% filter(Site == "Katza") %>% filter()
+
+species_kazza_knoll <- species_kazza_knoll %>% 
+                 mutate(year_month = ymd(paste(Year,month(Date),"1")))
+
+species_kazza_knoll$opening <- ifelse(year(species_kazza_knoll$year_month) < 2017 ,"before","after")
+
+
+```
+
+
+
+```{r}
+katza_list<-list()
+
+katza_list[[1]]<-lmer(formula = log(Species_number) ~ log(Surface.Area) + Max.depth  +(1|year_month),data = species_kazza_knoll)
+
+katza_list[[2]]<-lm(formula = log(Species_number) ~ log(Surface.Area) + Max.depth + year_month + opening,data = species_kazza_knoll)
+
+katza_list[[3]]<-lmer(formula = log(Species_number) ~ log(Surface.Area) + (1|year_month),data = species_kazza_knoll)
+
+katza_list[[4]]<-lm(formula = log(Species_number) ~ log(Surface.Area)*year_month + Max.depth ,data = species_kazza_knoll)
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+summary(katza_list[[1]])
+r.squaredGLMM(katza_list[[1]])
+
+summary(katza_list[[2]])
+r.squaredGLMM(katza_list[[2]])
+
+summary(katza_list[[3]])
+r.squaredGLMM(katza_list[[3]])
+
+aic_katza<-model.sel(katza_list[[1]],katza_list[[2]],katza_list[[3]],katza_list[[4]])
+```
+
+```{r}
+aic_katza
+```
+
+```{r}
+surface_area = rep(seq(from = 5,to = 40,by = 5),6) # Length = 8
+
+year_month = rep(unique(species_kazza_knoll$year_month),each = 8) # Length = 6
+
+  
+predict_katza<-data.frame(year_month = year_month,
+                         Surface.Area = surface_area,
+                         Max.depth = rep(4))
+
+predict_katza$Surface.Area_log<-log(predict_katza$Surface.Area)
+
+predict_katza_sp<-predict(katza_list[[3]],predict_katza,type="response")
+
+predict_katza_sp<-cbind(predict_katza,predict_katza_sp)
+
+predict_katza_sp$year_month<-as.factor(predict_katza_sp$year_month)
+
+predict_katza_sp$species_number<-exp(predict_katza_sp$predict_katza_sp)
+
+ggplot(data = predict_katza_sp,aes(x= Surface.Area,y = species_number,color= year_month))+
+  geom_line(size=1)+theme_classic()
+```
+

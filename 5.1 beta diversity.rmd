@@ -1,0 +1,189 @@
+---
+title: "5.1 beta diversity"
+author: "TG"
+date: "28 1 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(sars)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+```
+
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 2
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <2)
+
+```
+
+filter the north beach
+```{r}
+one_observer<-one_observer %>% filter(Site !="North beach")
+```
+
+
+3) convert to wide data
+
+```{r}
+wide_data<- one_observer %>%
+  group_by(Site,Year,Knoll,Date,survey_id,Species_grouped) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+wide_data<-spread(wide_data,Species_grouped,aboundance,fill = 0)
+```
+4) split to species matrix and site matrix and convert to mobr object
+
+
+```{r}
+species_data<-wide_data[,6:ncol(wide_data)]
+site_data<-wide_data[,1:5]
+site_data$Site_Knoll<-paste(site_data$Site,site_data$Knoll,sep="_")
+
+mobr_data <- make_mob_in(species_data, site_data)
+
+```
+
+
+5) rarefaction (with schools!)
+
+```{r}
+plot_rarefaction(mobr_data, 'Site', 'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'Site', 'SBR', lwd=4)
+
+
+```
+
+```{r}
+plot_rarefaction(mobr_data, 'Year', 'IBR', lwd=4)
+plot_rarefaction(mobr_data, 'Year', 'SBR', lwd=4)
+```
+
+
+
+6) Species abundance distributions (SAD)
+
+```{r}
+
+plot_abu(mobr_data, 'Site', type='rad', pooled=T, log='x')
+
+```
+
+
+7) calculate indexes 
+
+by site
+
+```{r}
+site_stats <- get_mob_stats(mobr_data, group_var = "Site",
+n_perm = 200)
+
+```
+• S - Observed species richness
+
+```{r}
+plot(site_stats, 'S')
+```
+
+• N - Number of individuals
+
+```{r}
+plot(site_stats, 'N')
+```
+
+
+• S_n - Rarefied species richness (Hurlbert 1971)
+
+```{r}
+plot(site_stats, 'S_n')
+```
+
+
+• S_PIE - Effective number of species based on PIE (Jost 2007)
+
+```{r}
+plot(site_stats, 'S_PIE')
+```
+
+
+by Year (2017 is only katza!)
+
+```{r}
+year_stats <- get_mob_stats(mobr_data, group_var = "Year",
+n_perm = 200)
+
+```
+• S - Observed species richness
+
+```{r}
+plot(year_stats, 'S')
+```
+
+• N - Number of individuals
+
+```{r}
+plot(year_stats, 'N')
+```
+
+
+• S_n - Rarefied species richness (Hurlbert 1971)
+
+```{r}
+plot(year_stats, 'S_n')
+```
+
+
+• S_PIE - Effective number of species based on PIE (Jost 2007)
+
+```{r}
+plot(year_stats, 'S_PIE')
+```

@@ -1,0 +1,537 @@
+---
+title: "Figure 2 appendix"
+author: "TG"
+date: "18 4 2022"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+same as Fig 2 but with all the data since 2015, species in the family level (no 2017)
+
+```{r message=FALSE, warning=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(plotrix)
+
+
+color_op6_l <- c("#B66DAF","#7CE171","#20A39E","#23001E","#FFBA49","#EF5B5B")
+
+save_path<-"C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\fig2_appendix"
+```
+
+
+In this script ill concentrate all the models and plot constructing Fig 2
+
+# Data prepartion
+
+```{r}
+load("fish_full_data.rdata")
+select <- dplyr::select
+
+fish_prep<-fish_full_data
+```
+
+## general steps:
+
+1. keep all years exept 2017
+
+```{r}
+
+fish_prep <- fish_full_data %>% filter(Year!=2017)
+
+```
+
+
+2. remove irregular sites
+
+```{r}
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+fish_prep<-fish_prep %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+```
+
+
+3. keep one observer from each knoll
+
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(fish_prep$survey_id)) {
+  
+  data <- fish_prep %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+fish_prep <- bind_rows(one_observer)
+
+rm(data,filter_data,one_observer)
+
+# make sure i have the right knolls number
+
+
+knoll_site_year <-fish_prep %>% group_by(Site,year_month) %>% summarise("knoll_number"= n_distinct(knoll_id))
+
+```
+
+4. keep only the resident fish
+
+* ill change the status of Pseudanthias squamipinnis to C here but i need to do it in the data prep script
+
+```{r}
+
+fish_prep$Status<-ifelse(fish_prep$Species %in% c("Pseudanthias squamipinnis",
+                                                  "Neopomacentrus miryae",
+                                                  "Chromis pembae",
+                                                  "Chromis weberi"),"C",fish_prep$Status)
+
+```
+
+
+
+```{r}
+
+fish_prep <- fish_prep %>% filter(Status != "T")
+
+```
+
+
+* here ill change mistakes in the confidance level of survey "Princess_6_2020-10-13" later i nedd to move it to the data prep script
+
+```{r}
+fish_prep$Confidence<-ifelse(fish_prep$survey_id == "Princess_6_2020-10-13" & fish_prep$Species != "Gobiodon reticulatus",0,fish_prep$Confidence)
+```
+
+5. convert year_month to factor
+
+```{r}
+
+fish_prep$year_month<-as.factor(fish_prep$year_month)
+```
+
+
+6. create the data for species richness, abundance and shannon model
+
+General stepes:
+1. add confisance to data before 2018
+
+2. filter accourding to confidance level (richness and eveness; confidance = 0, abundance; confidance = 2)
+
+3. filter schools for eveness
+
+4. group by the right variable (number of species/ind/effective number)
+
+
+```{r}
+fish_prep$Confidence[is.na(fish_prep$Confidence)]<-(0)
+```
+
+
+### richness
+
+```{r}
+
+richness <- fish_prep %>% filter(Confidence < 1)
+
+richness<- richness %>%
+  group_by(survey_id) %>%
+  mutate(Species_number = n_distinct(Species_2015)) %>%
+  select(-Species,-Species_2015,-Family,-Abundance,-Length,-Confidence,-Status,-a,-b) %>%
+  ungroup() %>%
+  distinct(.keep_all = T)
+
+```
+
+
+
+### abundance
+
+```{r}
+abundance <- fish_prep %>%
+  group_by(survey_id,Site,Knoll,year_month,Max_depth,Min_depth,Mean_Complexity,
+           Surface_Area,Algae,coral_cover) %>%
+    summarise("ind"=sum(Abundance))
+
+which(!abundance$survey_id %in% richness$survey_id)
+```
+
+### Shannon
+
+first - filter and convert to wide data format
+
+chand to the school fish name that valid for 2015
+
+Pseudanthias squamipinnis == Pseudanthias spp.
+
+Atherinomorus lacunosus == Atherinidae
+
+Spratelloides gracilis == Spratelloididae
+
+```{r}
+
+school_species <- c("Chromis viridis",
+                    "Pseudanthias spp.",
+                    "Neopomacentrus miryae",
+                    "Atherinidae",
+                    "Spratelloididae") 
+
+shannon <- fish_prep %>% filter(! Species_2015 %in% school_species) %>% filter(Confidence < 1)
+
+
+shannon <- shannon %>%
+  group_by(Site,Year,year_month,Knoll,DD_X,DD_Y,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+shannon<-spread(shannon,Species_2015,aboundance,fill = 0)
+
+which(!abundance$survey_id %in% shannon$survey_id)
+```
+calculate the shannon effective number
+
+```{r}
+shannon$shannon_div<-diversity(shannon[,11:ncol(shannon)],index="shannon")
+
+shannon<-shannon %>%
+  relocate(shannon_div,.after=survey_id) %>% 
+  mutate("shannon_effective"=exp(shannon_div),.after=shannon_div)
+  
+
+
+```
+
+# Models
+
+## Richness model
+
+```{r}
+richness_model<-lm(formula = log(Species_number) ~ log(Surface_Area)*year_month ,data = richness)
+
+summary(richness_model)
+r.squaredGLMM(richness_model)
+
+plot(richness_model)
+
+richness_model_gg = ggeffects::ggpredict(richness_model,terms = c('Surface_Area[1:66 by=1]','year_month'))
+
+
+ggplot()+
+  theme_classic()+
+  geom_line(data = richness_model_gg,aes(x= log(x),y = log(predicted),color= group),size=1.5)+ 
+  geom_ribbon(data = richness_model_gg,aes(x=log(x),ymin=log(conf.low),ymax=log(conf.high),fill=group),alpha=0.2)+
+  ylab("Log(Richness)")+xlim(1,4)+ylim(-1,4)+
+  xlab(bquote('Log(Surface area '~(m^2)))+
+    theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020*", "Fall 2020" ,
+                                      "Spring 2021"))+
+        scale_fill_manual(values=color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020*", "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("Area_richness_15.png" , width = 12, height = 5, dpi = 300,path = save_path)
+#ggsave("Area_richness_15.pdf" , width = 12, height = 5, dpi = 300,path = save_path)
+
+```
+
+## Abundance model
+
+
+```{r}
+abundance_model<-lm(formula = log(ind) ~ log(Surface_Area)*year_month,data = abundance)
+summary(abundance_model)
+
+plot(abundance_model)
+
+
+abundance_model_gg=ggeffects::ggpredict(abundance_model,terms = c('Surface_Area[1:66 by=1]','year_month'))
+
+ggplot()+
+  theme_classic()+
+  geom_line(data = abundance_model_gg,aes(x= log(x),y = log(predicted),color= group),size=1.5)+ 
+  geom_ribbon(data = abundance_model_gg,aes(x=log(x),ymin=log(conf.low),ymax=log(conf.high),fill=group),alpha=0.2)+
+  ylab("Log(Abundabce)")+xlim(1,4)+
+  xlab(bquote('Log(Surface area'~(m^2)))+
+    theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020*", "Fall 2020" ,
+                                      "Spring 2021"))+
+        scale_fill_manual(values=color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020*", "Fall 2020",
+                                      "Spring 2021"))
+
+
+#ggsave("Area_abundance_15.png" , width = 12, height = 5, dpi = 300,path = save_path)
+#ggsave("Area_abundance_15.pdf" , width = 12, height = 5, dpi = 300,path = save_path)
+
+
+```
+
+## Shannon model
+
+```{r}
+
+shannon_model<-lm(formula = log(shannon_effective) ~ log(Surface_Area)*year_month,data = shannon)
+summary(shannon_model)
+
+
+
+shannon_model_gg=ggeffects::ggpredict(shannon_model,terms = c('Surface_Area[1:66 by=1]','year_month'))
+
+ggplot()+
+  theme_classic()+
+  geom_line(data = shannon_model_gg,aes(x= log(x),y = log(predicted),color= group),size=1.5)+ 
+  geom_ribbon(data = shannon_model_gg,aes(x=log(x),ymin=log(conf.low),ymax=log(conf.high),fill=group),alpha=0.2)+
+  ylab("Log(Effective number of species)")+xlim(1,4)+
+  xlab(bquote('Log(Surface area'~(m^2)))+
+    theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020*", "Fall 2020" ,
+                                      "Spring 2021"))+
+        scale_fill_manual(values=color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020*", "Fall 2020" ,
+                                      "Spring 2021"))
+
+#ggsave("Area_shannon_15.png" , width = 12, height = 5, dpi = 300,path = save_path)
+#ggsave("Area_shannon_15.pdf" , width = 12, height = 5, dpi = 300,path = save_path)
+
+```
+
+# bar plots
+
+## richness
+
+create wide data
+
+
+```{r}
+richness_rarefied <- fish_prep %>% filter(Confidence < 1) %>% 
+  group_by(Site,Year,year_month,Knoll,Surface_Area,Max_depth,Date,survey_id,Species_2015) %>%
+  summarise("aboundance"=sum(Abundance))
+
+
+richness_rarefied<-spread(richness_rarefied,Species_2015,aboundance,fill = 0)
+```
+
+
+run rarefaction function (sample based)
+
+```{r}
+
+
+list_richness_rare<-list()
+loop<-1
+
+for (i in unique(richness_rarefied$year_month)) {
+  
+  year<- richness_rarefied %>% filter(year_month == i)
+  
+  year_richness<-Rarefy::rare_alpha(year[9:ncol(year)],
+                          method="hill",
+                          q=0,
+                          random=50,
+                          mean = F)
+  
+  year_richness$Year<-rep(i)
+  year_richness$sample<-1:nrow(year_richness)
+  
+  
+  list_richness_rare[[loop]]<-year_richness
+  loop<-loop+1
+  
+  
+}
+
+year_richness<-bind_rows(list_richness_rare)
+
+
+year_richness<-year_richness %>% filter(sample == 50)
+
+
+ggplot(data = year_richness,aes(x=Year,y=Rarefaction,fill = Year))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=IC_low,ymax= IC_up),width =0.1)+
+  scale_fill_manual(values = color_op6_l)+
+  xlab("")+ 
+  ylab('Richness')+
+  theme_classic()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+    scale_x_discrete(labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("rare_richness_bar_15.png" , width = 7, height = 5, dpi = 300,path = save_path)
+#ggsave("rare_richness_bar_15.pdf" , width = 7, height = 5, dpi = 300,path = save_path)
+
+```
+
+
+## abundance
+
+*** still didnt change
+
+
+```{r}
+ind_per_m<- abundance %>%  group_by(Site,year_month,Knoll,Surface_Area) %>% summarise("inds"=sum(ind)) %>% mutate("inds_m"=inds/Surface_Area)
+
+
+ind_per_m <- ind_per_m %>%
+  group_by(year_month) %>%
+  summarise("mean_density"=mean(inds_m),                                  "se"= std.error(inds_m),
+            "n"=n())
+
+
+ggplot(data = ind_per_m,aes(x=year_month,y=mean_density,fill = year_month))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=mean_density-se,ymax=mean_density+se),width =0.1)+
+  geom_text(aes(label = n,y=1), size = 7,color= "white")+  
+  xlab("Year")+ 
+  ylab(bquote('Mean fish density '(m^2)))+
+  theme_classic()+
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+  scale_fill_manual(values= color_op6_l,
+                           name = "Year",
+                           labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))+
+  scale_x_discrete(labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("abundance_bar_15.png" , width = 7, height = 5, dpi = 300,path = save_path)
+#ggsave("abundance_bar_15.pdf" , width = 7, height = 5, dpi = 300,path = save_path)
+```
+
+
+
+## shannon
+
+sample based rarefaction for effective number of species by shannon index
+
+```{r}
+
+
+shannon_rare<-list()
+loop<-1
+
+
+
+for (i in unique(shannon$year_month)) {
+  
+  year<- shannon %>% filter(year_month == i)
+  
+  year_richness_shannon<-Rarefy::rare_alpha(year[13:ncol(year)],
+                          method="hill",
+                          q=1,
+                          random=50,
+                          mean = F)
+  
+  year_richness_shannon$Year<-rep(i)
+  year_richness_shannon$sample<-1:nrow(year_richness_shannon)
+  
+  
+  shannon_rare[[loop]]<-year_richness_shannon
+  loop<-loop+1
+  
+  
+}
+
+richness_shannon<-bind_rows(shannon_rare)
+```
+
+
+```{r}
+richness_shannon<-richness_shannon %>% filter(sample == 50)
+
+
+ggplot(data = richness_shannon,aes(x=Year,y=Rarefaction,fill = Year))+
+geom_bar(stat="identity")+geom_errorbar(aes(ymin=IC_low,ymax= IC_up),width =0.1)+
+  scale_fill_manual(values = color_op6_l)+
+  xlab("")+ 
+  ylab('Effective number of species')+
+  theme_classic()+ 
+    theme(axis.text.x = element_text(size=20),
+        plot.title = element_text(size=24),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        strip.text.x = element_text(size = 20))+
+    scale_x_discrete(labels = c("Fall 2015","Fall 2016","Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+#ggsave("rare_shannon_bar_15.png" , width = 7, height = 5, dpi = 300,path = save_path)
+#ggsave("rare_shannon_bar_15.pdf" , width = 7, height = 5, dpi = 300,path = save_path)
+
+
+
+```
+

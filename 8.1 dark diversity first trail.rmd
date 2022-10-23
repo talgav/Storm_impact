@@ -1,0 +1,136 @@
+---
+title: "8.1 dark diversity first trail"
+author: "TG"
+date: "26 3 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(vegan)
+library(mobr)
+
+
+```
+
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+dark_data<-fish_full_data
+dark_data$Confidence[is.na(dark_data$Confidence)]<-(0)
+dark_data<-dark_data %>% filter(Confidence <2)
+
+```
+
+ filter the north beach
+```{r}
+dark_data<-dark_data %>% filter(Site !="North beach")
+```
+
+
+
+ add the month to the sample
+
+```{r include=FALSE}
+
+dark_data$year_month<-ifelse(month(dark_data$Date)>6,
+                                paste(dark_data$Year,"b",sep= " "),
+                                paste(dark_data$Year,"a",sep= " "))
+
+
+```
+
+
+first I will build species list for each site for each year
+ill do it for data collected after 2016 where fish were identified to species level
+
+* ill use presence/absance of species form both surviors
+
+
+```{r}
+dark_data<- dark_data %>% filter(Year != "2015",Year !="2016", Year !="2017") %>% select(Site,year_month,Species) %>% group_by(Site,year_month,Species) %>% summarise(Abundance = n())
+
+dark_data$Abundance<-1
+
+dark_data<-spread(dark_data,Species,Abundance)
+
+
+dark_data[is.na(dark_data)]<-0
+
+```
+
+
+apply the Beals algorithm
+
+
+```{r}
+
+beals<-beals(dark_data[,3:ncol(dark_data)],include = FALSE)
+
+
+pa <- decostand(dark_data[3:243],"pa")
+boxplot(as.vector(beals) ~ unlist(pa), xlab="Presence", ylab="Beals")
+
+beals_df<-as.data.frame(beals)
+d_meta<-dark_data[,1:2]
+
+beals_data<-cbind(d_meta,beals_df)
+
+
+
+
+
+```
+
+see for each species if it was present or absent form a site/year along side with its Beals probability  
+
+```{r}
+g_beals<-gather(beals_data,"Species","beal",3:ncol(beals_data))
+g_beals<-g_beals %>% arrange(Site,year_month)
+
+g_pa<-gather(dark_data,"Species","pa",3:ncol(dark_data))
+g_pa<-g_pa %>% arrange(Site,year_month)
+
+
+
+dark_diversity<-left_join(g_beals,g_pa,by=c("Site","year_month","Species")) 
+
+```
+
+set a threshold for being included in dark diversity
+
+
+```{r}
+
+threshold <- dark_diversity %>% filter(pa == 1) %>% group_by(Species) %>% summarise(avg_beal_pr =mean(beal))
+
+dark_diversity<- left_join(dark_diversity,threshold,by="Species")
+
+dark_diversity$avg_plus_five<-dark_diversity$avg_beal_pr+0.05
+
+dark_diversity$dark_sp<-ifelse(dark_diversity$pa != "1" & dark_diversity$beal > dark_diversity$avg_plus_five,
+                               "dark",
+                               "normal")
+
+```
+
+No species is define as dark!
+
+- the common species make noise in the beals probability?
+- the scale is too small?
+- too little sample units
+
+- maybe i should try using abundance data instead of p/a
+- maybe i should try using only cryptic species

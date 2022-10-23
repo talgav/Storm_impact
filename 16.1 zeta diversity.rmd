@@ -1,0 +1,576 @@
+---
+title: "16.1 zeta diversity"
+author: "TG"
+date: "10 1 2022"
+output: html_document
+---
+
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(Rarefy)
+library(rareNMtests)
+library(zetadiv)
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+```
+
+```{r}
+load("fish_full_data.rdata")
+```
+
+1) set one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+for (i in unique(fish_full_data$survey_id)) {
+  
+  data <- fish_full_data %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+2) filter confidence = 1
+
+for the years 2015-2017 where there is no confidance value i set the value 0
+
+```{r}
+
+one_observer$Confidence[is.na(one_observer$Confidence)]<-(0)
+one_observer<-one_observer %>% filter(Confidence <1)
+
+```
+
+3) filter the north beach
+```{r}
+one_observer<-one_observer %>%
+  filter(Site !="North beach",
+         ! Knoll %in% c("Tamar","South bridge reserve","south bridge reserve",
+                        "North bridge reserve","north bridge reserve"))
+                                      
+```
+
+
+
+4) add the month to the sample
+
+```{r include=FALSE}
+
+one_observer$year_month<-ifelse(month(one_observer$Date)>6,
+                                paste(one_observer$Year,"b",sep= " "),
+                                paste(one_observer$Year,"a",sep= " "))
+
+
+```
+
+# lets create the data for one site at one year
+
+NR 2018, convert to wide foramt and change to presence absence
+
+
+```{r}
+
+nr_2018<-one_observer %>%
+  filter(Site =="NR",Year =="2018") %>% 
+  select(Knoll,DD_X,DD_Y,Species,Abundance) %>%
+  mutate(Knoll = as.numeric(Knoll)) %>% 
+  group_by(Knoll,DD_X,DD_Y,Species) %>% summarise(Abundance=sum(Abundance)) %>% arrange(Knoll)
+
+nr_2018<-spread(nr_2018,Species,Abundance,fill = 0)
+nr_2018<-as.data.frame(nr_2018)
+
+nr_2018_species<-nr_2018[,4:ncol(nr_2018)]
+nr_2018_species[nr_2018_species>0]<-1
+
+
+
+nr_2018_coord<-nr_2018[,2:3]
+
+
+nr_2018_coord<-nr_2018_coord %>% rename(x=DD_X,y=DD_Y)
+
+
+nr_2018_species<-as.data.frame(nr_2018_species)
+nr_2018_coord<-as.data.frame(nr_2018_coord)
+```
+
+
+
+lets try the function
+
+```{r}
+zeta_nr_18<-Zeta.decline.mc(nr_2018_species,
+                nr_2018_coord,
+                orders = 1:17,
+                sam = 100,
+                NON = T)
+```
+
+```{r}
+
+nr_2021<-one_observer %>%
+  filter(Site =="NR",Year =="2021") %>% 
+  select(Knoll,DD_X,DD_Y,Species,Abundance) %>%
+  mutate(Knoll = as.numeric(Knoll)) %>% 
+  group_by(Knoll,DD_X,DD_Y,Species) %>% summarise(Abundance=sum(Abundance)) %>% arrange(Knoll)
+
+nr_2021<-spread(nr_2021,Species,Abundance,fill = 0)
+
+
+nr_2021_species<-nr_2021[,4:ncol(nr_2021)]
+nr_2021_species[nr_2021_species>0]<-1
+
+
+
+nr_2021_coord<-nr_2021[,2:3]
+
+
+nr_2021_coord<-nr_2021_coord %>% rename(x=DD_X,y=DD_Y)
+
+
+nr_2021_species<-as.data.frame(nr_2021_species)
+nr_2021_coord<-as.data.frame(nr_2021_coord)
+```
+
+
+
+lets try the function
+
+```{r}
+zeta_nr_21<-Zeta.decline.mc(nr_2021_species,
+                nr_2021_coord,
+                orders = 1:17,
+                sam = 100,
+                NON = T)
+```
+
+try to plot toghter
+
+```{r}
+nr_zeta<-data.frame("z_order"=zeta_nr_18[["zeta.order"]],
+                       "zeta_value_2018"=zeta_nr_18[["zeta.val"]],
+                       "sd_18"=zeta_nr_18[["zeta.val.sd"]],
+                       "zeta_value_2021"=zeta_nr_21[["zeta.val"]],
+                       "sd_21"=zeta_nr_21[["zeta.val.sd"]])
+
+nr_zeta<-gather(nr_zeta,"Year","Value",2:3)
+
+
+ggplot(data =nr_zeta,aes(x=z_order,y=Value,color =Year) )+geom_point()+geom_line()
+```
+
+
+write a loop that do this for each site and each year
+
+
+
+```{r}
+
+
+
+one_observer$site_sample<-paste(one_observer$Site,
+                                one_observer$Year,                          month(one_observer$Date),
+                                sep=" ")
+
+one_observer_spatial<-one_observer %>% drop_na(DD_X)
+
+one_observer_spatial<-one_observer_spatial %>% filter(Year >2017)
+
+zeta_data_list<-list()
+zeta_list<-list()
+aic_list<-list()
+loop<-1
+
+for (i in unique(one_observer_spatial$site_sample)) {
+  
+  one_data <- one_observer_spatial %>% filter(site_sample==i)
+  
+  t_Year<-unique(one_data$Year)
+  t_year_month<-unique(one_data$year_month)
+  t_month<-unique(month(one_data$Date))
+  t_Site<-unique(one_data$Site)
+  
+  
+  one_zeta_data <- one_data %>%
+  select(Knoll,DD_X,DD_Y,Species,Abundance) %>%
+  mutate(Knoll = as.numeric(Knoll)) %>% 
+  group_by(Knoll,DD_X,DD_Y,Species) %>% 
+    summarise(Abundance=sum(Abundance)) %>%    arrange(Knoll)
+
+one_zeta_data<-spread(one_zeta_data,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+one_species<-one_zeta_data[,4:ncol(one_zeta_data)]
+one_species[one_species>0]<-1
+one_species<-as.data.frame(one_species)
+
+
+one_coord<-one_zeta_data[,2:3]
+one_coord<-one_coord %>% rename(x=DD_X,y=DD_Y)
+one_coord<-as.data.frame(one_coord)
+
+zeta <-Zeta.decline.mc(one_species,
+                one_coord,
+                orders = 1:nrow(one_species),
+                sam = 100,
+                NON = T)
+
+data<-data.frame("z_order"=zeta[["zeta.order"]],
+                       "zeta_value"=zeta[["zeta.val"]],
+                       "zeta_sd"=zeta[["zeta.val.sd"]],
+                 "zeta_ratio"=c(NA,zeta[["ratio"]]),
+                 "Site"=rep(t_Site),
+                 "Year"= rep(t_Year),
+                 "year_month"=rep(t_year_month),
+                 "month"=rep(t_month),
+                 "sample_id"=rep(i))
+
+
+ aic_table<-as.data.frame(zeta[["aic"]])
+ aic_table$Site<-rep(t_Site)  
+ aic_table$year_month<- rep(t_year_month)
+ aic_table$method<-rownames(aic_table)
+ 
+ aic_table$method[aic_table$method=="zeta$zeta.exp"]<-"exp"
+
+ aic_table$method[aic_table$method=="zeta$zeta.pl"]<-"plog" 
+ 
+# calculte the delta and keep only the best model
+ 
+ aic_table <- aic_table %>% mutate("delta_aic"= min(AIC)-max(AIC)) %>% filter(AIC == min(AIC))
+   
+ aic_list[[loop]]<-aic_table
+ zeta_list[[i]]<-zeta
+ zeta_data_list[[loop]]<-data
+
+
+loop<-loop+1
+
+  
+  
+}
+  
+  
+zeta_divesity<-bind_rows(zeta_data_list)
+
+aic_table<-bind_rows(aic_list)
+
+ggplot(data =zeta_divesity,
+       aes(x=z_order,y=zeta_value,color =year_month))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(Site ~ .,nrow = 2,ncol=2)+
+  scale_x_continuous(limits = c(0, 15), breaks = seq(0, 15, by = 1))+
+  theme_bw()+xlab("Zeta order")+ylab("Zeta diversity")
+
+
+ggplot(data =zeta_divesity,
+       aes(x=z_order,y=zeta_ratio,color =year_month))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(Site ~ .,nrow = 2,ncol=2)+
+  theme_bw()+xlab("Zeta order")+ylab("Zeta ratio")
+
+
+
+for (i in unique(zeta_divesity$Site)) {
+  
+  zeta_plot<-zeta_divesity %>% filter(Site==i)
+  
+  plot<-ggplot(data =zeta_plot,aes(x=z_order,y=zeta_value,color =year_month) )+geom_line()+geom_point(size=2,position = position_dodge(0.3))+ theme_classic()+xlab("Zeta order")+ylab("Zeta diversity")+geom_errorbar(aes(ymin = zeta_value-zeta_sd,ymax = zeta_value+zeta_sd),width = 0.4,alpha = 0.5,position = position_dodge(0.3))+ggtitle(i)+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        plot.title = element_text(size=24))
+  
+ print(plot)
+  
+}
+
+
+```
+
+# all sites toghther diffrent years 
+
+```{r}
+
+all_site <- one_observer_spatial %>% 
+  select(site_sample,Site,year_month,DD_X,DD_Y,Species,Abundance) %>%
+  group_by(site_sample,Site,year_month,DD_X,DD_Y,Species) %>% 
+    summarise(Abundance=sum(Abundance))
+
+all_site_wide <- spread(all_site,
+                      Species,
+                      Abundance,
+                      fill = 0)
+
+
+
+zeta_data_all_list<-list()
+zeta_all_list<-list()
+aic_list_all<-list()
+loop_all<-1
+
+for (i in unique(all_site_wide$year_month)) {
+  
+  one_data <- all_site_wide %>% filter(year_month == i )
+  
+  t_year_month<-unique(one_data$year_month)
+  t_Site<-unique(one_data$Site)
+  
+  
+one_species<-one_data[,6:ncol(one_data)]
+one_species[one_species>0]<-1
+one_species<-as.data.frame(one_species)
+
+
+one_coord <- one_data[,4:5]
+one_coord <- one_coord %>% rename(x=DD_X,y=DD_Y)
+one_coord <- as.data.frame(one_coord)
+
+zeta <- Zeta.decline.mc(one_species,
+                one_coord,
+                orders = 1:nrow(one_species),
+                sam = 100,
+                NON = T)
+
+
+data <- data.frame("z_order"=zeta[["zeta.order"]],
+                       "zeta_value"=zeta[["zeta.val"]],
+                       "zeta_sd"=zeta[["zeta.val.sd"]],
+                 "zeta_ratio"=c(NA,zeta[["ratio"]]),
+                 "year_month"=rep(t_year_month))
+
+
+ aic_table<-as.data.frame(zeta[["aic"]])
+ aic_table$year_month<- rep(t_year_month)
+ aic_table$method<-rownames(aic_table)
+ 
+ aic_table$method[aic_table$method=="zeta$zeta.exp"]<-"exp"
+
+ aic_table$method[aic_table$method=="zeta$zeta.pl"]<-"plog" 
+ 
+# calculte the delta and keep only the best model
+ 
+ aic_table <- aic_table %>% mutate("delta_aic"= min(AIC)-max(AIC)) %>% filter(AIC == min(AIC))
+   
+ aic_list_all[[loop_all]]<-aic_table
+ zeta_all_list[[i]]<-zeta
+ zeta_data_all_list[[loop_all]]<-data
+
+
+loop_all<-loop_all+1
+
+  
+  
+}
+  
+zeta_divesity_all<-bind_rows(zeta_data_all_list)
+
+aic_table_all<-bind_rows(aic_list_all)
+
+ggplot(data =zeta_divesity_all,
+       aes(x=z_order,y=zeta_value,color =year_month))+
+  geom_line()+
+  geom_point()+
+  theme_bw()+xlab("Zeta order")+ylab("Zeta diversity")+
+  geom_errorbar(aes(ymin = zeta_value-zeta_sd,ymax = zeta_value+zeta_sd),width = 0.2,alpha = 0.6)+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        plot.title = element_text(size=24))+
+  scale_x_continuous(limits = c(0, 15), breaks = seq(0,15, by = 5))+
+  scale_color_manual(values = fish_all[3:6],name = "Year",
+                           labels = c(                                  "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+
+#ggsave("zeta_2018.pdf" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+
+#ggsave("zeta_2018.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+  
+ggplot(data =zeta_divesity_all,
+       aes(x=z_order,y=zeta_ratio,color =year_month))+
+  geom_line()+
+  geom_point()+
+  theme_bw()+xlab("Zeta order")+ylab("Zeta ratio")+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        plot.title = element_text(size=24))+
+    scale_color_manual(values = fish_all[3:6],name = "Year",
+                           labels = c(                                  "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021"))
+#ggsave("zeta_ratio_2018.pdf" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+
+#ggsave("zeta_ratio_2018.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+
+
+```
+
+
+# all sites toghther diffrent years - but with 2015 data
+
+```{r}
+
+all_site_2015 <- one_observer %>% 
+  select(site_sample,Site,year_month,DD_X,DD_Y,Species_2015,Abundance) %>%
+  group_by(site_sample,Site,year_month,DD_X,DD_Y,Species_2015) %>% 
+    summarise(Abundance=sum(Abundance))
+
+all_site_2015_wide <- spread(all_site_2015,
+                      Species_2015,
+                      Abundance,
+                      fill = 0)
+
+
+all_site_2015_wide<-all_site_2015_wide %>% filter(year_month!="2017 b")
+
+
+zeta_data_all_list_15<-list()
+zeta_all_list_15<-list()
+aic_list_all_15<-list()
+loop_all_15<-1
+
+for (i in unique(all_site_2015_wide$year_month)) {
+  
+  one_data <- all_site_2015_wide %>% filter(year_month == i )
+  
+  t_year_month<-unique(one_data$year_month)
+  t_Site<-unique(one_data$Site)
+  
+  
+one_species<-one_data[,6:ncol(one_data)]
+one_species[one_species>0]<-1
+one_species<-as.data.frame(one_species)
+
+
+one_coord <- one_data[,4:5]
+one_coord <- one_coord %>% rename(x=DD_X,y=DD_Y)
+one_coord <- as.data.frame(one_coord)
+
+zeta <- Zeta.decline.mc(one_species,
+                one_coord,
+                orders = 1:nrow(one_species),
+                sam = 100,
+                NON = T)
+
+
+data <- data.frame("z_order"=zeta[["zeta.order"]],
+                       "zeta_value"=zeta[["zeta.val"]],
+                       "zeta_sd"=zeta[["zeta.val.sd"]],
+                 "zeta_ratio"=c(NA,zeta[["ratio"]]),
+                 "year_month"=rep(t_year_month))
+
+
+ aic_table<-as.data.frame(zeta[["aic"]])
+ aic_table$year_month<- rep(t_year_month)
+ aic_table$method<-rownames(aic_table)
+ 
+ aic_table$method[aic_table$method=="zeta$zeta.exp"]<-"exp"
+
+ aic_table$method[aic_table$method=="zeta$zeta.pl"]<-"plog" 
+ 
+# calculte the delta and keep only the best model
+ 
+ aic_table <- aic_table %>% mutate("delta_aic"= min(AIC)-max(AIC)) %>% filter(AIC == min(AIC))
+   
+ aic_list_all_15[[loop_all_15]]<-aic_table
+ zeta_all_list_15[[i]]<-zeta
+ zeta_data_all_list_15[[loop_all_15]]<-data
+
+
+loop_all_15<-loop_all_15+1
+
+  
+  
+}
+  
+zeta_divesity_all_15<-bind_rows(zeta_data_all_list_15)
+
+aic_table_all_15<-bind_rows(aic_list_all_15)
+
+ggplot(data =zeta_divesity_all_15,
+       aes(x=z_order,y=zeta_value,color =year_month))+
+  geom_line()+
+  geom_point()+
+  theme_bw()+xlab("Zeta order")+ylab("Zeta diversity")+
+  geom_errorbar(aes(ymin = zeta_value-zeta_sd,ymax = zeta_value+zeta_sd),width = 0.2,alpha = 0.6)+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        plot.title = element_text(size=24))+
+  scale_x_continuous(limits = c(0, 20), breaks = seq(0,20, by = 5))+
+  scale_color_manual(values = fish_all,name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+#ggsave("zeta_2015.pdf" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+
+#ggsave("zeta_2015.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+
+  
+ggplot(data =zeta_divesity_all_15,
+       aes(x=z_order,y=zeta_ratio,color =year_month))+
+  geom_line()+
+  geom_point()+
+  theme_bw()+xlab("Zeta order")+ylab("Zeta ratio")+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =16),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        plot.title = element_text(size=24))+
+     scale_color_manual(values = fish_all,name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020",
+                                      "Fall 2020" ,
+                                      "Spring 2021"))
+
+
+#ggsave("zeta_ratio_2015.pdf" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+
+#ggsave("zeta_ratio_2015.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts\\plots for ms\\zeta")
+```
+

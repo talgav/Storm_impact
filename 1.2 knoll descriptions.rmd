@@ -1,0 +1,124 @@
+---
+title: "1.2 knoll descriptions"
+author: "TG"
+date: "14 12 2021"
+output:
+   prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+
+```{r}
+load("knoll_mdata.rdata")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+```
+
+
+```{r}
+ggplot(knoll_mdata, aes(x=Site, y=Max_depth,fill = Site)) + 
+  geom_violin()+theme_bw()+ stat_summary(fun.y=mean, geom="point", size=2)+theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none")+
+  scale_fill_manual(values = color)+ylab("Max depth (m)")
+  
+ggsave("knoll_max_depth.png" , width = 8, height = 6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\knolls")
+
+
+
+
+ggplot(knoll_mdata, aes(x=Site, y=Surface_Area,fill = Site)) + 
+  geom_violin()+theme_bw()+ stat_summary(fun.y=mean, geom="point", size=2)+theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none")+
+   scale_fill_manual(values = color)+
+  ylab(bquote('Surface area'~m^2))
+
+
+ggsave("knoll_surface_area.png" , width = 8, height =6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\knolls")
+
+
+knoll_mdata$storm<-ordered(knoll_mdata$storm,levels = c("Before","After"))
+
+ggplot(knoll_mdata, aes(x=Site, y=Surface_Area,fill = storm)) + 
+  geom_violin(position=position_dodge(0.9))+
+  theme_bw()+
+  stat_summary(fun.y=mean, geom="point", size=2,position=position_dodge(0.9))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "top")+
+     ylab(bquote('Surface area'~m^2))+
+  scale_fill_manual(values = c("#98c1d9","#ee6c4d"))
+
+ggsave("knoll_surface_area_storm.png" , width = 8, height =6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\knolls")
+
+
+ggplot(knoll_mdata, aes(x=Site, y=Mean_Complexity,fill = Site)) + 
+  geom_violin()+theme_bw()+ stat_summary(fun.y=mean, geom="point", size=2)+theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "none")+
+  scale_fill_manual(values = color)+ylab("Mean rugosity")
+  
+ggsave("knoll_complexity.png" , width = 8, height =6, dpi = 300,path = "C:\\Users\\TalG\\Documents\\PhD\\Eco camp\\R Scripts\\plots nov 2021\\knolls")
+
+
+
+ggplot(knoll_mdata, aes(x=Site, y=Mean_Complexity,fill = storm)) + 
+  geom_violin(position=position_dodge(0.8))+
+  theme_bw()+ 
+  stat_summary(fun.y=mean, geom="point", size=2,position=position_dodge(0.8))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        legend.position = "top")+
+  scale_fill_manual(values = c("#98c1d9","#ee6c4d"))+ylab("Mean complexity")
+  
+
+
+
+
+
+
+
+```
+
+some descrptive statistcs
+
+
+```{r}
+knoll_mdata %>% group_by(Site) %>% summarise(mean(Max_depth),std.error(Max_depth))
+
+knoll_mdata %>% group_by(Site) %>% summarise(mean(Surface_Area),std.error(Surface_Area))
+
+knoll_mdata %>%  summarise(mean(Surface_Area),std.error(Surface_Area))
+
+
+knoll_mdata %>% group_by(Site) %>% summarise(mean(Mean_Complexity,na.rm=T),std.error(Mean_Complexity))
+
+```
+

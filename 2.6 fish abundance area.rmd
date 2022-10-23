@@ -1,0 +1,279 @@
+---
+title: "2.6 fish abundance area"
+author: "TG"
+date: "1 2 2022"
+output: html_document
+---
+
+
+```{r}
+load("fish_full_data.rdata")
+select <- dplyr::select
+```
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(Hmisc)
+library(vegan)
+library(mobr)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(MASS)
+
+fish_k<-c("#669bbc","#336683","#1a4b66","#003049","#ed3140","#c1121f","#710912")
+fish_all<-c("#669bbc","#336683","#003049","#ed3140","#c1121f","#710912")
+color<-c("#56dde0", "#33658a", "#f5af2d","#f2641a")
+
+
+```
+
+
+### general steps:
+
+1) filter confidence 
+
+here i dont need to filter confiudence the abundace...
+
+
+
+```{r}
+
+sp_area<-fish_full_data
+sp_area$Confidence[is.na(sp_area$Confidence)]<-(0)
+#sp_area<- sp_area %>% filter(Confidence < 1)
+
+```
+
+
+2) remove irregular sites
+
+
+```{r}
+
+knolls_to_remove<-c("South bridge reserve","North bridge reserve","south bridge reserve",
+                    "Tamar","north bridge reserve")
+
+sp_area<-sp_area %>% filter(!Knoll %in% knolls_to_remove) %>% filter(Site !="North beach")
+
+```
+
+3) keep one observer
+
+```{r}
+one_observer<-list()
+loop<-1
+set.seed(1)
+
+for (i in unique(sp_area$survey_id)) {
+  
+  data <- sp_area %>% filter(survey_id == i)
+  
+  obs_amount <- length(unique(data$Observer))
+  obs_name <- unique(data$Observer)
+  chosen_obs <- sample(obs_name,1)  
+ 
+  filter_data<-data %>% filter(Observer == chosen_obs)
+  one_observer[[loop]]<-filter_data
+  loop<-loop+1
+  
+  
+}
+
+one_observer<- bind_rows(one_observer)
+
+rm(data,filter_data)
+```
+
+
+
+
+the connection between resident fish and surface area
+
+
+```{r}
+only_cryptic <- one_observer %>% filter(Status != "T")
+
+```
+
+
+3) set the number of ind per knoll
+
+
+```{r}
+ind_knoll<- only_cryptic %>% group_by(Site,Knoll,year_month,Max_depth,Min_depth,Mean_Complexity,Surface_Area,Algae,coral_cover) %>%
+  summarise("ind"=sum(Abundance))
+```
+
+* ill leave 2007 where only kazza was sampled out
+
+```{r}
+ind_knoll<-ind_knoll %>% filter(year_month != "2017 b")
+
+ind_knoll$year_month<-as.factor(ind_knoll$year_month)
+
+```
+
+
+
+```{r}
+ggplot(ind_knoll, aes(x=ind))+
+  geom_histogram(color="darkblue", fill="lightblue")
+
+ggplot(ind_knoll, aes(x=log(ind)))+
+  geom_histogram(color="darkblue", fill="lightblue")
+
+ggplot(ind_knoll, aes(x=coral_cover))+
+  geom_histogram(color="darkblue", fill="lightblue")
+
+mean(ind_knoll$coral_cover,na.rm =T)
+median(ind_knoll$coral_cover,na.rm = T)
+
+```
+
+```{r}
+
+model_list<-list()
+
+model_list[[1]] <-lm(formula = log(ind) ~ log(Surface_Area)*Site +year_month + Max_depth ,data = ind_knoll)
+summary(model_list[[1]])
+
+sjPlot::plot_model(model_list[[1]]
+                   ,type="eff",terms = c('year_month','Surface_Area'))+theme_classic()
+
+
+model_list[[2]]<-lm(formula = log(ind) ~ log(Surface_Area)*Site +year_month + Max_depth+coral_cover ,data = ind_knoll)
+summary(model_list[[2]])
+
+model_list[[3]]<-lm(formula = log(ind) ~ log(Surface_Area)*year_month + Site+ Max_depth+coral_cover ,data = ind_knoll)
+summary(model_list[[3]])
+
+
+model.sel(model_list)
+
+plot(model_list[[3]])
+
+
+model_5_gg=ggeffects::ggpredict(model_list[[3]],terms = c('Surface_Area[1:66 by=1]','year_month'))
+
+ggplot()+
+  theme_classic()+
+  geom_line(data = model_5_gg,aes(x= log(x),y = log(predicted),color= group),size=1.5)+ 
+  geom_point(data = ind_knoll,aes(log(Surface_Area),log(ind),color = year_month),alpha = 0.3)+
+  geom_ribbon(data = model_5_gg,aes(x=log(x),ymin=log(conf.low),ymax=log(conf.high),fill=group),alpha=0.1)+
+  ylab("log(individueals #)")+xlim(1,4)+
+  xlab(bquote('log(Knoll surface area '~(m^2)))+
+    theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))+
+        scale_fill_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+
+#ggsave("residence_fish_inds_area.png" , width = 14, height = 5, dpi = 300,path = "C:\\Users\\TalG\\My Drive\\PHD\\chapter 1 strom effect\\R Scripts")
+
+
+
+
+
+```
+
+Use the MASS package
+
+```{r}
+nb_models<-list()
+
+nb_models[[1]]<- glm.nb(ind ~ log(Surface_Area)*Site +year_month + Max_depth ,data = ind_knoll)
+
+summary(nb_models[[1]])
+
+plot(nb_models[[1]])
+  
+```
+
+
+
+
+
+
+
+
+
+```{r}
+surface_area = rep(seq(from = 1,to = 60,by = 1),24) # Length = 60
+site = rep(unique(ind_knoll$Site),each = 360) # Length = 4
+year = rep(rep(unique(ind_knoll$year_month),each = 60),4) # Length = 6
+
+predict_no_out<-data.frame(Site = site,
+                       year_month = year,
+                       Surface_Area= surface_area,
+                       Max_depth = rep(4.6),
+                       coral_cover = rep(37))
+
+
+predict_no_out$Surface_Area_log<-log(predict_no_out$Surface_Area)
+
+
+predict_species_no_out<-predict(model_list[[2]],predict_no_out,type="response")
+
+predict_no_out<-cbind(predict_no_out,predict_species_no_out)
+
+predict_no_out$site_year<-paste(predict_no_out$Site,predict_no_out$year_month,sep="_")
+
+predict_no_out$species_number<-exp(predict_no_out$predict_species_no_out)
+
+
+predict_no_out$year_month<- as.factor(predict_no_out$year_month)
+
+l_type<-c("solid","solid","solid","twodash","solid","solid")
+
+ggplot(data = predict_no_out,aes(x= Surface_Area,y = log10(species_number),color= site))+
+  theme_classic()+geom_smooth(alpha = 0.2)+
+  geom_point(data = ind_knoll,aes(Surface_Area,log10(ind),color = Site),alpha = 0.3)+
+  ylab("log10(abundance)")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 02))+
+  scale_color_manual(name = "Site",values = color)
+
+
+ggplot(data = predict_no_out,aes(x= Surface_Area,y = log10(species_number),color= year_month))+
+  theme_classic()+geom_smooth(alpha = 0.2)+   geom_point(data = ind_knoll,aes(Surface_Area,log10(ind),color = year_month),alpha = 0.3)+
+  ylab("log10(abundance)")+
+  xlab(bquote('Knoll surface area '~(m^2)))+
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size =20),
+        axis.title.x = element_text(size=22),
+        axis.title.y = element_text(size=22),
+        legend.title = element_text(size=22),
+        legend.text = element_text(size=20),
+        strip.text.x = element_text(size = 20))+
+        scale_color_manual(values=fish_all,
+                           name = "Year",
+                           labels = c("Fall 2015", "Fall 2016",
+                                      "Fall 2018","Spring 2020", "Fall 2020" ,
+                                      "Spring 2021","Fall 2021"))
+
+```
+
